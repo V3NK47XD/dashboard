@@ -1,3 +1,4 @@
+import { loadAllHabitsData } from '../db/habits';
 import React, { useState, useEffect } from 'react';
 import { db } from '../db/database';
 import {
@@ -45,12 +46,13 @@ export default function Settings() {
     setLastSyncState(getLastSyncTime());
 
     try {
-      const [tCount, thCount, dlCount] = await Promise.all([
+      const [tCount, thCount] = await Promise.all([
         db.todos.count(),
         db.thoughts.count(),
-        db.daily_logs.count(),
       ]);
-      setCounts({ todos: tCount, thoughts: thCount, dailyLogs: dlCount });
+      const habits = loadAllHabitsData();
+      const habitDays = Object.values(habits).reduce((sum, h) => sum + Object.keys(h || {}).length, 0);
+      setCounts({ todos: tCount, thoughts: thCount, dailyLogs: habitDays });
     } catch (e) {
       console.warn('Error reading local counts:', e);
     }
@@ -378,7 +380,7 @@ export default function Settings() {
             <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '0.2rem' }}>{counts.thoughts}</div>
           </div>
           <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Daily Logs</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Habit Entries</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '0.2rem' }}>{counts.dailyLogs}</div>
           </div>
           <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', textAlign: 'center' }}>

@@ -1,16 +1,8 @@
-import { triggerDebouncedSync } from '../sync/npointSync';
+import {
+  syncSaveThought,
+  syncRemoveThought,
+} from '../sync/npointSync';
 import { db, generateUUID, getDeviceId } from './database';
-
-let syncTriggerCallback = null;
-export function registerThoughtSyncTrigger(callback) {
-  syncTriggerCallback = callback;
-}
-function notifySync() {
-  if (typeof syncTriggerCallback === 'function') {
-    syncTriggerCallback();
-  }
-  triggerDebouncedSync();
-}
 
 export async function getThoughts() {
   const all = await db.thoughts.toArray();
@@ -36,24 +28,12 @@ export async function createThought(content) {
     device_id,
   };
 
-  await db.thoughts.put(record);
-  notifySync();
+  await syncSaveThought(record);
   return record;
 }
 
 export async function deleteThought(id) {
-  const existing = await db.thoughts.get(id);
-  if (!existing) return;
-
-  const now = new Date().toISOString();
-  const updated = {
-    ...existing,
-    deleted_at: now,
-    updated_at: now,
-  };
-
-  await db.thoughts.put(updated);
-  notifySync();
+  await syncRemoveThought(id);
 }
 
 export async function searchThoughtsLocally(query) {

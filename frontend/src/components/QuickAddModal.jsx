@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { createTodo } from '../db/todos';
 import { createThought } from '../db/thoughts';
-import { saveDailyMetrics, getDailyLogByDate } from '../db/daily';
+import {
+  HABIT_CATEGORIES,
+  adjustTodayCategoryCount,
+  getTodayIso,
+} from '../db/habits';
+import { syncUpdateHabitCount } from '../sync/npointSync';
 
-export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSaved }) {
+export default function QuickAddModal({ isOpen, onClose, onDataSaved }) {
   const [activeTab, setActiveTab] = useState('habit'); // habit | todo | thought
   const [todoTitle, setTodoTitle] = useState('');
   const [thoughtContent, setThoughtContent] = useState('');
-  const [metricType, setMetricType] = useState('water_ml');
-  const [metricValue, setMetricValue] = useState(250);
+  const [selectedCatId, setSelectedCatId] = useState('workout');
+  const [metricValue, setMetricValue] = useState(15);
 
   if (!isOpen) return null;
 
@@ -32,21 +37,25 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
 
   const handleSaveMetric = async (e) => {
     e.preventDefault();
-    const existing = await getDailyLogByDate(selectedDate);
-    const updated = {
-      [metricType]: (existing[metricType] || 0) + Number(metricValue),
-    };
-    await saveDailyMetrics(selectedDate, updated);
+    const today = getTodayIso();
+    const nextVal = adjustTodayCategoryCount(selectedCatId, Number(metricValue));
+    try {
+      await syncUpdateHabitCount(selectedCatId, today, nextVal);
+    } catch (err) {
+      console.warn('Sync note:', err);
+    }
     onDataSaved && onDataSaved();
     onClose();
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Quick Capture & Log</h2>
-          <button className="icon-btn" onClick={onClose}>✕</button>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>Quick Add</h2>
+          <button className="icon-btn" onClick={onClose} style={{ border: 'none', background: 'none', color: '#888', cursor: 'pointer', fontSize: '1.2rem' }}>
+            ✕
+          </button>
         </div>
 
         {/* Tab switch */}
@@ -56,7 +65,7 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
             style={{ flex: 1 }}
             onClick={() => setActiveTab('habit')}
           >
-            Log Metric
+            Log Habit
           </button>
           <button
             className={`btn btn-sm ${activeTab === 'todo' ? 'btn-primary' : 'btn-secondary'}`}
@@ -70,7 +79,7 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
             style={{ flex: 1 }}
             onClick={() => setActiveTab('thought')}
           >
-            Journal / Thought
+            Thought
           </button>
         </div>
 
@@ -78,24 +87,27 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
           <form onSubmit={handleSaveMetric} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
               <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                Select Metric ({selectedDate})
+                Select Habit (Today)
               </label>
               <select
                 className="select"
-                value={metricType}
-                onChange={(e) => setMetricType(e.target.value)}
+                value={selectedCatId}
+                onChange={(e) => {
+                  setSelectedCatId(e.target.value);
+                  const cat = HABIT_CATEGORIES.find((c) => c.id === e.target.value);
+                  if (cat) setMetricValue(cat.step);
+                }}
               >
-                <option value="water_ml">💧 Water Intake (ml)</option>
-                <option value="exercise_minutes">🏋️ Gym / Exercise (mins)</option>
-                <option value="sleep_minutes">😴 Sleep Time (mins)</option>
-                <option value="leetcode_solved">💻 LeetCode Problems</option>
-                <option value="learning_minutes">📚 Learning Time (mins)</option>
-                <option value="protein_g">🥩 Protein (g)</option>
+                {HABIT_CATEGORIES.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.title} ({cat.unit})
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
-                Amount to Add
+                Amount to Add Today
               </label>
               <input
                 type="number"
@@ -107,7 +119,7 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
               />
             </div>
             <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
-              Add to {selectedDate}
+              Add to Today's Count
             </button>
           </form>
         )}
@@ -129,7 +141,7 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
               />
             </div>
             <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
-              Save Task (Offline-First)
+              Save Task
             </button>
           </form>
         )}
@@ -151,7 +163,7 @@ export default function QuickAddModal({ isOpen, onClose, selectedDate, onDataSav
               />
             </div>
             <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
-              Save to Timeline
+              Save Thought
             </button>
           </form>
         )}

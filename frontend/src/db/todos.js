@@ -1,16 +1,9 @@
-import { triggerDebouncedSync } from '../sync/npointSync';
+import {
+  syncSaveTask,
+  syncToggleTask,
+  syncRemoveTask,
+} from '../sync/npointSync';
 import { db, generateUUID, getDeviceId } from './database';
-
-let syncTriggerCallback = null;
-export function registerSyncTrigger(callback) {
-  syncTriggerCallback = callback;
-}
-function notifySync() {
-  if (typeof syncTriggerCallback === 'function') {
-    syncTriggerCallback();
-  }
-  triggerDebouncedSync();
-}
 
 export async function getTodos() {
   const all = await db.todos.toArray();
@@ -20,6 +13,7 @@ export async function getTodos() {
 }
 
 export async function createTodo(title) {
+  if (!title || !title.trim()) return null;
   const id = generateUUID();
   const device_id = await getDeviceId();
   const now = new Date().toISOString();
@@ -36,8 +30,7 @@ export async function createTodo(title) {
     device_id,
   };
 
-  await db.todos.put(record);
-  notifySync();
+  await syncSaveTask(record);
   return record;
 }
 
@@ -45,45 +38,24 @@ export async function toggleTodo(id) {
   const existing = await db.todos.get(id);
   if (!existing) return null;
 
-  const now = new Date().toISOString();
-  const updated = {
-    ...existing,
-    completed: !existing.completed,
-    updated_at: now,
-  };
-
-  await db.todos.put(updated);
-  notifySync();
-  return updated;
+  await syncToggleTask(id);
+  return { ...existing, completed: !existing.completed };
 }
 
 export async function updateTodoTitle(id, newTitle) {
   const existing = await db.todos.get(id);
   if (!existing || existing.deleted_at) return null;
 
-  const now = new Date().toISOString();
   const updated = {
     ...existing,
     title: newTitle.trim(),
-    updated_at: now,
+    updated_at: new Date().toISOString(),
   };
 
-  await db.todos.put(updated);
-  notifySync();
+  await syncSaveTask(updated);
   return updated;
 }
 
 export async function deleteTodo(id) {
-  const existing = await db.todos.get(id);
-  if (!existing) return;
-
-  const now = new Date().toISOString();
-  const updated = {
-    ...existing,
-    deleted_at: now,
-    updated_at: now,
-  };
-
-  await db.todos.put(updated);
-  notifySync();
+  await syncRemoveTask(id);
 }

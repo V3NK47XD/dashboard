@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getTodos, createTodo } from '../db/todos';
 import { getThoughts, createThought } from '../db/thoughts';
-import { getDailyLogByDate, saveDailyMetrics } from '../db/daily';
+import { loadAllHabitsData, adjustTodayCategoryCount, getTodayIso } from '../db/habits';
 import { triggerDebouncedSync } from '../sync/npointSync';
 
 export default function AI() {
@@ -57,15 +57,15 @@ export default function AI() {
         const thoughts = await getThoughts();
         return JSON.stringify(thoughts.slice(0, 10));
       }
-      if (name === 'daily_get') {
-        const log = await getDailyLogByDate(args.date || new Date().toISOString().split('T')[0]);
-        return JSON.stringify(log);
+      if (name === 'habits_get') {
+        const habits = loadAllHabitsData();
+        return JSON.stringify(habits);
       }
-      if (name === 'daily_update') {
-        const date = args.date || new Date().toISOString().split('T')[0];
-        await saveDailyMetrics(date, args.metrics || {});
-        triggerDebouncedSync();
-        return `Updated daily metrics for ${date}`;
+      if (name === 'habits_update') {
+        const catId = args.category || 'workout';
+        const delta = Number(args.delta || 1);
+        const nextVal = adjustTodayCategoryCount(catId, delta);
+        return `Updated today's ${catId} to ${nextVal}`;
       }
     } catch (e) {
       return `Tool execution error: ${e.message}`;

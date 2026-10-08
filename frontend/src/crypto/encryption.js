@@ -1,19 +1,19 @@
 /**
- * Hardware-Accelerated AES-GCM Client-Side Encryption
+ * Hardware-Accelerated AES-GCM Client-Side Record Encryption
  * 
- * Uses the native Web Crypto API (SubtleCrypto) for high-throughput,
- * zero-dependency 256-bit AES-GCM encryption with PBKDF2 key derivation.
- * 
- * Supports:
- * - Password encryption & decryption with authenticated integrity check
- * - Password verification
- * - "No encryption" plaintext envelope mode
- * - Fast Base64 encoding/decoding for Uint8Arrays
+ * Provides individual record value encryption for tasks, thoughts, and habits:
+ * - Fixed overall JSON document structure
+ * - Only sensitive record values are encrypted (enc:v1:salt:iv:ciphertext)
+ * - Cached PBKDF2 key derivation for sub-millisecond batch operations
+ * - Transparent support for "No Encryption" plaintext mode
  */
 
 const PBKDF2_ITERATIONS = 100000;
 const SALT_BYTE_LENGTH = 16;
 const IV_BYTE_LENGTH = 12; // Standard 96-bit IV for AES-GCM
+
+// Key cache: `${password}:${saltBase64}` -> CryptoKey
+const keyCache = new Map();
 
 function getCrypto() {
   if (typeof window !== 'undefined' && window.crypto) {
@@ -25,9 +25,6 @@ function getCrypto() {
   throw new Error('Web Crypto API is not supported in this environment');
 }
 
-/**
- * Convert a Uint8Array to a Base64 string
- */
 export function uint8ArrayToBase64(bytes) {
   let binary = '';
   const len = bytes.byteLength;
@@ -37,9 +34,6 @@ export function uint8ArrayToBase64(bytes) {
   return btoa(binary);
 }
 
-/**
- * Convert a Base64 string to a Uint8Array
- */
 export function base64ToUint8Array(base64) {
   const binary = atob(base64);
   const len = binary.length;
@@ -51,9 +45,27 @@ export function base64ToUint8Array(base64) {
 }
 
 /**
- * Derive an AES-GCM 256-bit CryptoKey from a password and salt using PBKDF2
+ * Generate a new random Base64 salt
  */
-async function deriveKey(password, salt, iterations = PBKDF2_ITERATIONS) {
+export function generateSalt() {
+  const crypto = getCrypto();
+  const saltBytes = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
+  return uint8ArrayToBase64(saltBytes);
+}
+
+/**
+ * Derive an AES-GCM 256-bit CryptoKey with caching
+ */
+export async function getDerivedKey(password, saltBase64) {
+  if (!password) {
+    throw new Error('Password is required to derive key');
+  }
+
+  const cacheKey = `${password}:${saltBase64}`;
+  if (keyCache.has(cacheKey)) {
+    return keyCache.get(cacheKey);
+  }
+
   const crypto = getCrypto();
   const enc = new TextEncoder();
   const passwordKey = await crypto.subtle.importKey(
@@ -64,11 +76,12 @@ async function deriveKey(password, salt, iterations = PBKDF2_ITERATIONS) {
     ['deriveKey']
   );
 
-  return crypto.subtle.deriveKey(
+  const saltBytes = base64ToUint8Array(saltBase64);
+  const derivedKey = await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt,
-      iterations: iterations,
+      salt: saltBytes,
+      iterations: PBKDF2_ITERATIONS,
       hash: 'SHA-256',
     },
     passwordKey,
@@ -76,24 +89,29 @@ async function deriveKey(password, salt, iterations = PBKDF2_ITERATIONS) {
     false,
     ['encrypt', 'decrypt']
   );
+
+  keyCache.set(cacheKey, derivedKey);
+  return derivedKey;
 }
 
 /**
- * Encrypt a plain JavaScript object/value with a password
- * Returns an envelope object ready for JSON serialization
+ * Encrypt an individual record value (string or object)
+ * Returns a compact token: `enc:v1:<salt>:<iv>:<ciphertext>`
  */
-export async function encryptPayload(data, password) {
+export async function encryptRecordValue(value, password, preferredSalt = null) {
   if (!password) {
-    throw new Error('Password is required for encryption');
+    // Unencrypted mode: return raw value
+    return value;
   }
 
   const crypto = getCrypto();
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTE_LENGTH));
+  const saltBase64 = preferredSalt || generateSalt();
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTE_LENGTH));
-  const key = await deriveKey(password, salt, PBKDF2_ITERATIONS);
+  const key = await getDerivedKey(password, saltBase64);
 
   const enc = new TextEncoder();
-  const plaintextBytes = enc.encode(JSON.stringify(data));
+  const plaintext = typeof value === 'string' ? value : JSON.stringify(value);
+  const plaintextBytes = enc.encode(plaintext);
 
   const cipherBuffer = await crypto.subtle.encrypt(
     {
@@ -104,50 +122,40 @@ export async function encryptPayload(data, password) {
     plaintextBytes
   );
 
-  const ciphertextBytes = new Uint8Array(cipherBuffer);
+  const ivBase64 = uint8ArrayToBase64(iv);
+  const cipherBase64 = uint8ArrayToBase64(new Uint8Array(cipherBuffer));
 
-  return {
-    version: 1,
-    encrypted: true,
-    algorithm: 'AES-GCM-256',
-    kdf: 'PBKDF2-SHA256',
-    iterations: PBKDF2_ITERATIONS,
-    salt: uint8ArrayToBase64(salt),
-    iv: uint8ArrayToBase64(iv),
-    ciphertext: uint8ArrayToBase64(ciphertextBytes),
-    updated_at: new Date().toISOString(),
-  };
+  return `enc:v1:${saltBase64}:${ivBase64}:${cipherBase64}`;
 }
 
 /**
- * Decrypt an envelope object with a password
- * Returns the parsed plain JavaScript object
+ * Decrypt an individual record value
+ * If not encrypted (no `enc:v1:` prefix), returns the value as-is.
  */
-export async function decryptPayload(envelope, password) {
-  if (!envelope) {
-    throw new Error('Empty envelope provided for decryption');
-  }
-
-  // If not encrypted, return the unencrypted data payload directly
-  if (!envelope.encrypted) {
-    return envelope.data !== undefined ? envelope.data : envelope;
+export async function decryptRecordValue(token, password) {
+  if (typeof token !== 'string' || !token.startsWith('enc:v1:')) {
+    return token;
   }
 
   if (!password) {
-    const err = new Error('Password required to decrypt data');
+    const err = new Error('Password required to decrypt record');
     err.code = 'PASSWORD_REQUIRED';
     throw err;
   }
 
+  const parts = token.split(':');
+  if (parts.length < 5) {
+    throw new Error('Malformed encrypted record format');
+  }
+
+  const [, , saltBase64, ivBase64, cipherBase64] = parts;
+
   try {
+    const key = await getDerivedKey(password, saltBase64);
+    const iv = base64ToUint8Array(ivBase64);
+    const ciphertext = base64ToUint8Array(cipherBase64);
+
     const crypto = getCrypto();
-    const salt = base64ToUint8Array(envelope.salt);
-    const iv = base64ToUint8Array(envelope.iv);
-    const ciphertext = base64ToUint8Array(envelope.ciphertext);
-    const iterations = envelope.iterations || PBKDF2_ITERATIONS;
-
-    const key = await deriveKey(password, salt, iterations);
-
     const decryptedBuffer = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
@@ -158,44 +166,36 @@ export async function decryptPayload(envelope, password) {
     );
 
     const dec = new TextDecoder();
-    const jsonString = dec.decode(decryptedBuffer);
-    return JSON.parse(jsonString);
+    const rawString = dec.decode(decryptedBuffer);
+
+    // Try parsing as JSON object/array if applicable
+    if ((rawString.startsWith('{') && rawString.endsWith('}')) || (rawString.startsWith('[') && rawString.endsWith(']'))) {
+      try {
+        return JSON.parse(rawString);
+      } catch {
+        return rawString;
+      }
+    }
+    return rawString;
   } catch (err) {
-    const decryptError = new Error('Incorrect password or corrupted data');
-    decryptError.code = 'INVALID_PASSWORD';
-    decryptError.originalError = err;
-    throw decryptError;
+    const decErr = new Error('Incorrect password or corrupted record');
+    decErr.code = 'INVALID_PASSWORD';
+    decErr.originalError = err;
+    throw decErr;
   }
 }
 
 /**
- * Verify whether a given password correctly decrypts an envelope
+ * Verify a master password against a test token or record
  */
-export async function verifyPassword(envelope, password) {
-  if (!envelope || !envelope.encrypted) return true;
+export async function verifyRecordPassword(token, password) {
+  if (typeof token !== 'string' || !token.startsWith('enc:v1:')) {
+    return true;
+  }
   try {
-    await decryptPayload(envelope, password);
+    await decryptRecordValue(token, password);
     return true;
   } catch {
     return false;
   }
-}
-
-/**
- * Package data into either an encrypted or plaintext envelope based on encryptionMode
- * encryptionMode: 'password' | 'none'
- */
-export async function packageEnvelope(data, encryptionMode, password) {
-  if (encryptionMode === 'password' && password) {
-    return await encryptPayload(data, password);
-  }
-
-  // Plaintext envelope
-  return {
-    version: 1,
-    encrypted: false,
-    algorithm: 'none',
-    data: data,
-    updated_at: new Date().toISOString(),
-  };
 }

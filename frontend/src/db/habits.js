@@ -1,195 +1,248 @@
-import { triggerDebouncedSync } from '../sync/npointSync';
-import { getDailyLogs, getDailyLogByDate, saveDailyMetrics } from './daily';
+/**
+ * 8 Core Habit Categories with 1-Year History & Dynamic Thresholds
+ * 
+ * Categories:
+ * 1. Workout
+ * 2. Wakeup on alarm
+ * 3. Water
+ * 4. Code
+ * 5. Learn
+ * 6. Protein
+ * 7. Fiber
+ * 8. NoGoon
+ * 
+ * - Each stores 1 year of daily history: { "YYYY-MM-DD": number }
+ * - Stepper (+ / −) updates ONLY the current day
+ * - Monthly heatmap view with "View More" for past months
+ */
 
-export const DEFAULT_HABITS = [
+export const HABIT_CATEGORIES = [
   {
-    id: 'gym',
-    title: 'Go To Gym',
+    id: 'workout',
+    title: 'Workout',
     icon: '🏋️',
     colorTheme: 'habit-yellow',
-    metricField: 'exercise_minutes',
-    threshold: 30, // 30 mins to be considered valid
-    step: 15, // +15m or -15m
+    accentColor: '#facc15',
     unit: 'min',
+    step: 15,
+    defaultThreshold: 30,
     formatValue: (val) => `${val || 0}m`,
-    formatTarget: '30m',
   },
   {
-    id: 'skincare',
-    title: 'Do Skincare',
-    icon: '✨',
-    colorTheme: 'habit-coral',
-    metricField: 'fiber_g', // Using fiber_g as routine steps / skincare counter
-    threshold: 2, // 2 routines (morning + night)
-    step: 1, // +1 or -1
-    unit: 'steps',
-    formatValue: (val) => `${val || 0} steps`,
-    formatTarget: '2 steps',
-  },
-  {
-    id: 'early_rise',
-    title: 'Early Rise',
-    icon: '🌅',
+    id: 'alarm',
+    title: 'Wakeup on alarm',
+    icon: '⏰',
     colorTheme: 'habit-emerald',
-    metricField: 'sleep_minutes',
-    threshold: 420, // 7.0 hours (420 mins)
-    step: 30, // +30m or -30m
-    unit: 'hrs',
-    formatValue: (val) => `${((val || 0) / 60).toFixed(1)}h`,
-    formatTarget: '7.0h',
+    accentColor: '#10b981',
+    unit: 'time',
+    step: 1,
+    defaultThreshold: 1,
+    formatValue: (val) => (val >= 1 ? 'Awake ✓' : 'Missed'),
   },
   {
-    id: 'code_daily',
-    title: 'Code Daily',
-    icon: '💻',
-    colorTheme: 'habit-teal',
-    metricField: 'leetcode_solved',
-    threshold: 2, // 2 problems
-    step: 1, // +1 or -1
-    unit: 'problems',
-    formatValue: (val) => `${val || 0} solved`,
-    formatTarget: '2 solved',
-  },
-  {
-    id: 'hydrate',
-    title: 'Hydrate Daily',
+    id: 'water',
+    title: 'Water',
     icon: '💧',
     colorTheme: 'habit-blue',
-    metricField: 'water_ml',
-    threshold: 2000, // 2000 ml (approx 8 glasses)
-    step: 250, // +250ml or -250ml (1 glass)
+    accentColor: '#38bdf8',
     unit: 'ml',
+    step: 250,
+    defaultThreshold: 2000,
     formatValue: (val) => `${val || 0}ml`,
-    formatTarget: '2000ml',
   },
   {
-    id: 'learning',
-    title: 'Study & Learn',
+    id: 'code',
+    title: 'Code',
+    icon: '💻',
+    colorTheme: 'habit-teal',
+    accentColor: '#2dd4bf',
+    unit: 'problems',
+    step: 1,
+    defaultThreshold: 2,
+    formatValue: (val) => `${val || 0} solved`,
+  },
+  {
+    id: 'learn',
+    title: 'Learn',
     icon: '📚',
     colorTheme: 'habit-purple',
-    metricField: 'learning_minutes',
-    threshold: 45, // 45 mins
-    step: 15, // +15m or -15m
+    accentColor: '#a855f7',
     unit: 'min',
+    step: 15,
+    defaultThreshold: 45,
     formatValue: (val) => `${val || 0}m`,
-    formatTarget: '45m',
+  },
+  {
+    id: 'protein',
+    title: 'Protein',
+    icon: '🥩',
+    colorTheme: 'habit-coral',
+    accentColor: '#fb7185',
+    unit: 'g',
+    step: 10,
+    defaultThreshold: 120,
+    formatValue: (val) => `${val || 0}g`,
+  },
+  {
+    id: 'fiber',
+    title: 'Fiber',
+    icon: '🥗',
+    colorTheme: 'habit-green',
+    accentColor: '#4ade80',
+    unit: 'g',
+    step: 5,
+    defaultThreshold: 30,
+    formatValue: (val) => `${val || 0}g`,
+  },
+  {
+    id: 'nogoon',
+    title: 'NoGoon',
+    icon: '🛡️',
+    colorTheme: 'habit-violet',
+    accentColor: '#c084fc',
+    unit: 'clean',
+    step: 1,
+    defaultThreshold: 1,
+    formatValue: (val) => (val >= 1 ? 'Clean ✓' : '0'),
   },
 ];
 
+export const STORAGE_HABIT_DATA = 'dashboard_habits_store_v2';
+export const STORAGE_HABIT_THRESHOLDS = 'dashboard_habit_thresholds_v2';
+
 /**
- * Get current user-configured habit thresholds from localStorage
+ * Get current date ISO string (YYYY-MM-DD)
+ */
+export function getTodayIso() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Load thresholds from localStorage with defaults
  */
 export function getHabitThresholds() {
   try {
-    const raw = localStorage.getItem('dashboard_habit_thresholds');
-    if (raw) {
-      return JSON.parse(raw);
-    }
+    const raw = localStorage.getItem(STORAGE_HABIT_THRESHOLDS);
+    if (raw) return JSON.parse(raw);
   } catch (e) {
-    console.warn('Error reading habit thresholds:', e);
+    console.warn('Error reading thresholds:', e);
   }
   const defaults = {};
-  DEFAULT_HABITS.forEach((h) => {
-    defaults[h.id] = h.threshold;
+  HABIT_CATEGORIES.forEach((cat) => {
+    defaults[cat.id] = cat.defaultThreshold;
   });
   return defaults;
 }
 
 /**
- * Set habit threshold, save to localStorage and trigger sync to npoint.io
+ * Save threshold for a category
  */
-export function setHabitThreshold(habitId, newThreshold) {
+export function setHabitThreshold(catId, newThreshold) {
   const current = getHabitThresholds();
-  const found = DEFAULT_HABITS.find((h) => h.id === habitId);
-  const minVal = found ? found.step : 1;
-  current[habitId] = Math.max(minVal, Number(newThreshold));
-  localStorage.setItem('dashboard_habit_thresholds', JSON.stringify(current));
-  triggerDebouncedSync();
+  const cat = HABIT_CATEGORIES.find((c) => c.id === catId);
+  const minVal = cat ? cat.step : 1;
+  current[catId] = Math.max(minVal, Number(newThreshold));
+  localStorage.setItem(STORAGE_HABIT_THRESHOLDS, JSON.stringify(current));
   return current;
 }
 
 /**
- * Return habit definitions with active user-configured thresholds & labels
+ * Load all habits 1-year history:
+ * {
+ *   [catId]: {
+ *     [dateIso]: number
+ *   }
+ * }
  */
-export function getActiveHabits() {
-  const custom = getHabitThresholds();
-  return DEFAULT_HABITS.map((h) => {
-    const thresh = custom[h.id] !== undefined ? custom[h.id] : h.threshold;
-    return {
-      ...h,
-      threshold: thresh,
-      formatTarget: h.formatValue(thresh),
-    };
+export function loadAllHabitsData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_HABIT_DATA);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Error reading habits data:', e);
+  }
+  const initial = {};
+  HABIT_CATEGORIES.forEach((cat) => {
+    initial[cat.id] = {};
   });
+  return initial;
 }
 
 /**
- * Returns intensity level 0 to 4 based on counter value relative to threshold:
- * 0: 0 / none
- * 1: >0 and < 40% of threshold (light shade)
- * 2: 40% to 79% of threshold (medium-light shade)
- * 3: 80% to 119% of threshold (target reached / valid! rich vibrant shade)
- * 4: >= 120% of threshold (exceeded target! deepest / max glowing shade)
+ * Save all habits history to localStorage
  */
-export function getHabitIntensity(habit, log) {
-  if (!log) return 0;
-  const val = log[habit.metricField] || 0;
-  if (val <= 0) return 0;
-
-  const threshold = habit.threshold || 1;
-  const ratio = val / threshold;
-
-  if (ratio < 0.4) {
-    return 1;
-  } else if (ratio < 0.8) {
-    return 2;
-  } else if (ratio < 1.2) {
-    return 3;
-  } else {
-    return 4;
-  }
+export function saveAllHabitsData(data) {
+  localStorage.setItem(STORAGE_HABIT_DATA, JSON.stringify(data));
 }
 
 /**
- * Determines whether a habit is considered valid on a given day based on the threshold
+ * Get the count for a specific category and date
  */
-export function isHabitValid(habit, log) {
-  if (!log) return false;
-  const val = log[habit.metricField] || 0;
-  return val >= (habit.threshold || 1);
+export function getCategoryDateCount(catId, dateIso = getTodayIso()) {
+  const data = loadAllHabitsData();
+  return (data[catId] && data[catId][dateIso]) || 0;
 }
 
 /**
- * Calculates current consecutive streak for a specific habit (must meet threshold)
+ * Update today's count for a category (strictly today only)
  */
-export function calculateHabitStreak(habit, logsMap) {
+export function adjustTodayCategoryCount(catId, delta) {
+  const today = getTodayIso();
+  const data = loadAllHabitsData();
+  if (!data[catId]) data[catId] = {};
+
+  const current = data[catId][today] || 0;
+  const nextVal = Math.max(0, current + delta);
+  data[catId][today] = nextVal;
+
+  saveAllHabitsData(data);
+  return nextVal;
+}
+
+/**
+ * Compute intensity level (0 to 4) relative to threshold
+ */
+export function getIntensityLevel(val, threshold) {
+  if (!val || val <= 0) return 0;
+  const ratio = val / (threshold || 1);
+  if (ratio < 0.4) return 1;
+  if (ratio < 0.8) return 2;
+  if (ratio < 1.2) return 3;
+  return 4;
+}
+
+/**
+ * Compute streak for a habit category
+ */
+export function calculateCategoryStreak(catId, historyMap = null, threshold = null) {
+  const history = historyMap || (loadAllHabitsData()[catId] || {});
+  const thresh = threshold !== null ? threshold : (getHabitThresholds()[catId] || 1);
+
+  const today = getTodayIso();
   let streak = 0;
-  const today = new Date();
-  const todayIso = today.toISOString().split('T')[0];
+  const curr = new Date();
 
-  const yest = new Date(today);
-  yest.setDate(yest.getDate() - 1);
-  const yestIso = yest.toISOString().split('T')[0];
-
-  const todayLog = logsMap.get(todayIso);
-  const yestLog = logsMap.get(yestIso);
-
-  const doneToday = todayLog && isHabitValid(habit, todayLog);
-  const doneYest = yestLog && isHabitValid(habit, todayLog);
-
-  if (!doneToday && !doneYest) {
-    return 0;
+  // If today is completed, start from today; otherwise check starting from yesterday
+  const todayVal = history[today] || 0;
+  let checkDate = new Date(curr.getTime());
+  if (todayVal < thresh) {
+    checkDate.setDate(checkDate.getDate() - 1);
   }
 
-  const startDate = doneToday ? today : yest;
-  const cur = new Date(startDate);
+  for (let i = 0; i < 365; i++) {
+    const y = checkDate.getFullYear();
+    const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+    const d = String(checkDate.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
 
-  while (true) {
-    const iso = cur.toISOString().split('T')[0];
-    const log = logsMap.get(iso);
-    if (log && isHabitValid(habit, log)) {
+    const val = history[dateStr] || 0;
+    if (val >= thresh) {
       streak++;
-      cur.setDate(cur.getDate() - 1);
+      checkDate.setDate(checkDate.getDate() - 1);
     } else {
       break;
     }
@@ -199,26 +252,51 @@ export function calculateHabitStreak(habit, logsMap) {
 }
 
 /**
- * Adjusts counter by delta (+step or -step) for a specific date
+ * Get days array for a specific month (year, month: 1-12)
+ * for rendering the LeetCode heatmap grid
  */
-export async function adjustHabitCounter(habit, date, delta) {
-  const currentLog = await getDailyLogByDate(date);
-  const currentVal = currentLog[habit.metricField] || 0;
-  const newVal = Math.max(0, currentVal + delta);
-  const updates = { [habit.metricField]: newVal };
-  const updatedLog = await saveDailyMetrics(date, updates);
-  return updatedLog;
+export function getMonthHeatmapDays(year, month, catHistory, threshold) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = [];
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayStr = String(day).padStart(2, '0');
+    const monthStr = String(month).padStart(2, '0');
+    const dateIso = `${year}-${monthStr}-${dayStr}`;
+
+    const val = (catHistory && catHistory[dateIso]) || 0;
+    const intensity = getIntensityLevel(val, threshold);
+
+    const dateObj = new Date(year, month - 1, day);
+    const dayOfWeek = dateObj.getDay(); // 0 = Sun, 1 = Mon ...
+
+    days.push({
+      day,
+      dateIso,
+      val,
+      intensity,
+      isValid: val >= threshold,
+      dayOfWeek,
+    });
+  }
+
+  return days;
 }
 
 /**
- * Toggles habit completion directly to threshold (or resets to 0 if already valid)
+ * Get past available months list for "View More"
  */
-export async function toggleHabitForDate(habit, date) {
-  const currentLog = await getDailyLogByDate(date);
-  const currentVal = currentLog[habit.metricField] || 0;
-  const isValid = currentVal >= habit.threshold;
-  const newVal = isValid ? 0 : habit.threshold;
-  const updates = { [habit.metricField]: newVal };
-  const updatedLog = await saveDailyMetrics(date, updates);
-  return updatedLog;
+export function getPastMonthsList(count = 12) {
+  const list = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    list.push({
+      year: d.getFullYear(),
+      month: d.getMonth() + 1, // 1-12
+      label: d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+      shortLabel: d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+    });
+  }
+  return list;
 }

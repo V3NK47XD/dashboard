@@ -1,53 +1,64 @@
 /**
- * Client-Side npoint.io Sync Engine
+ * Client-Side npoint.io Sync Engine (Fixed Structure & Record-Level Encryption)
  * 
- * Manages reliable single-source-of-truth sync across devices (phone, laptop, tablet):
- * - Guarantees only ONE npoint URL active on the device at a time.
- * - When setting or changing URL: fetches cloud data FIRST and overwrites local device.
- * - Separate PULL (read-only, never pushes back) and PUSH (triggered only by local edits).
- * - Real-time cross-device updates: auto-pulls on tab visibility, window focus, and 10s intervals.
- * - Hardware-accelerated AES-GCM 256-bit encryption with PBKDF2.
+ * Fixed JSON Structure:
+ * {
+ *   version: 2,
+ *   updated_at: ISOString,
+ *   habits: { [category]: { [dateIso]: count } },
+ *   thresholds: { [category]: targetNumber },
+ *   tasks: { [taskId]: { id, completed, created_at, updated_at, val } },
+ *   thoughts: { [thoughtId]: { id, created_at, updated_at, val } }
+ * }
+ * 
+ * - Only task and thought values are encrypted (enc:v1:salt:iv:ciphertext)
+ * - Fetch-latest-then-update pattern prevents race conditions between phone & laptop
+ * - 1-year history per habit category
+ * - Immediate updates on visibility change, focus, and 10s polling
  */
 
 import { db } from '../db/database';
-import { packageEnvelope, decryptPayload, verifyPassword } from '../crypto/encryption';
+import {
+  encryptRecordValue,
+  decryptRecordValue,
+  generateSalt,
+} from '../crypto/encryption';
+import {
+  HABIT_CATEGORIES,
+  loadAllHabitsData,
+  saveAllHabitsData,
+  getHabitThresholds,
+  setHabitThreshold,
+} from '../db/habits';
 
-// Storage Keys
 export const STORAGE_NPOINT_URL = 'dashboard_npoint_url';
 export const STORAGE_ENCRYPTION_MODE = 'dashboard_encryption_mode'; // 'password' | 'none'
 export const STORAGE_SAVED_PASSWORD = 'dashboard_saved_password';
 export const STORAGE_LAST_SYNC = 'dashboard_last_sync_at';
 export const SESSION_PASSWORD = 'dashboard_session_password';
 
-// Sync States: 'needs_setup' | 'locked' | 'synced' | 'syncing' | 'offline' | 'error'
 let syncState = 'offline';
 let syncErrorMessage = '';
 let isSyncInProgress = false;
-let debounceTimeout = null;
 let lastSyncTimestamp = localStorage.getItem(STORAGE_LAST_SYNC) || null;
-let lastRemoteHash = null;
+let lastRemoteDocHash = null;
 
 const stateListeners = new Set();
 const dataChangeListeners = new Set();
 
 /**
- * Normalize any npoint URL / token to standard API endpoint:
- * https://api.npoint.io/{token}
+ * Clean & normalize npoint URL or bin token
  */
 export function normalizeNpointUrl(rawInput) {
   if (!rawInput) return '';
   let str = rawInput.trim();
-  
-  // Extract token if full URL provided
   const match = str.match(/([a-f0-9]{16,40})/i);
   if (match) {
     return `https://api.npoint.io/${match[1]}`;
   }
-
   if (str.startsWith('http://') || str.startsWith('https://')) {
     return str;
   }
-
   return `https://api.npoint.io/${str}`;
 }
 
@@ -129,7 +140,7 @@ function setSyncState(state, error = '') {
   });
 }
 
-function notifyDataChanged() {
+export function notifyDataChanged() {
   dataChangeListeners.forEach((fn) => {
     try {
       fn();
@@ -140,23 +151,36 @@ function notifyDataChanged() {
 }
 
 /**
- * Automatically create a new empty bin on npoint.io
+ * Create default empty fixed JSON structure
+ */
+export function createDefaultDocument() {
+  const habits = {};
+  const thresholds = {};
+  HABIT_CATEGORIES.forEach((cat) => {
+    habits[cat.id] = {};
+    thresholds[cat.id] = cat.defaultThreshold;
+  });
+
+  return {
+    version: 2,
+    updated_at: new Date().toISOString(),
+    salt: generateSalt(),
+    habits,
+    thresholds,
+    tasks: {},
+    thoughts: {},
+  };
+}
+
+/**
+ * Automatically create a new empty bin on npoint.io with fixed structure
  */
 export async function createNpointBin() {
+  const initialDoc = createDefaultDocument();
   const resp = await fetch('https://www.npoint.io/documents', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: JSON.stringify({
-        version: 1,
-        created_at: new Date().toISOString(),
-        todos: [],
-        thoughts: [],
-        daily_logs: [],
-      }),
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: JSON.stringify(initialDoc) }),
   });
 
   if (!resp.ok) {
@@ -170,193 +194,113 @@ export async function createNpointBin() {
 }
 
 /**
- * Fetch and decrypt remote snapshot from npoint.io
+ * Fetch raw document from npoint.io
  */
-async function fetchRemoteSnapshot(url, password) {
-  const response = await fetch(url, {
+async function fetchRemoteDoc(url) {
+  const resp = await fetch(url, {
     method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-    },
+    headers: { 'Accept': 'application/json' },
     cache: 'no-cache',
   });
 
-  if (response.status === 404) {
+  if (resp.status === 404) {
     throw new Error('Bin not found (404). Please verify your npoint.io URL.');
   }
 
-  if (!response.ok) {
-    throw new Error(`npoint.io server error: HTTP ${response.status}`);
+  if (!resp.ok) {
+    throw new Error(`npoint.io server error: HTTP ${resp.status}`);
   }
 
-  const envelope = await response.json();
-
-  // If remote bin is completely empty or empty object
-  if (!envelope || (typeof envelope === 'object' && Object.keys(envelope).length === 0)) {
-    return { isEmpty: true, data: null, envelope: null };
+  let doc = await resp.json();
+  if (!doc || doc.version === 1 || (doc.encrypted && doc.ciphertext) || typeof doc !== 'object') {
+    doc = createDefaultDocument();
   }
-
-  // Check if encrypted
-  if (envelope.encrypted) {
-    if (!password) {
-      const err = new Error('This bin is encrypted with a password.');
-      err.code = 'PASSWORD_REQUIRED';
-      err.envelope = envelope;
-      throw err;
-    }
-    const decryptedData = await decryptPayload(envelope, password);
-    return { isEmpty: false, data: decryptedData, envelope };
-  }
-
-  // Plaintext data
-  const data = envelope.data !== undefined ? envelope.data : envelope;
-  return { isEmpty: false, data: data, envelope };
+  if (!doc.habits) doc.habits = {};
+  if (!doc.thresholds) doc.thresholds = {};
+  if (!doc.tasks) doc.tasks = {};
+  if (!doc.thoughts) doc.thoughts = {};
+  return doc;
 }
-
 /**
- * Push snapshot envelope to npoint.io
+ * Push document to npoint.io
  */
-async function pushRemoteSnapshot(url, envelope) {
-  const response = await fetch(url, {
+async function pushRemoteDoc(url, doc) {
+  doc.updated_at = new Date().toISOString();
+  const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(envelope),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(doc),
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to push to npoint.io (HTTP ${response.status})`);
+  if (!resp.ok) {
+    throw new Error(`Failed to update npoint.io (HTTP ${resp.status})`);
   }
 
-  return await response.json();
+  lastSyncTimestamp = doc.updated_at;
+  localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
+  return await resp.json();
 }
 
 /**
- * Collect full local snapshot from Dexie DB
+ * Overwrite local device state (Dexie + localStorage) with remote doc
  */
-export async function getLocalSnapshot() {
-  const [todos, thoughts, dailyLogs] = await Promise.all([
-    db.todos.toArray(),
-    db.thoughts.toArray(),
-    db.daily_logs.toArray(),
-  ]);
+async function overwriteDeviceFromDoc(doc, password) {
+  if (!doc) return;
 
-  let thresholds = {};
-  try {
-    const raw = localStorage.getItem('dashboard_habit_thresholds');
-    if (raw) thresholds = JSON.parse(raw);
-  } catch (e) {}
-
-  return {
-    version: 1,
-    client_timestamp: new Date().toISOString(),
-    todos: todos || [],
-    thoughts: thoughts || [],
-    daily_logs: dailyLogs || [],
-    settings: {
-      thresholds,
-    },
-  };
-}
-
-/**
- * Overwrite all local device Dexie tables with remote data
- */
-async function overwriteLocalDevice(remoteData) {
-  if (!remoteData || typeof remoteData !== 'object') return;
-  if (remoteData.settings?.thresholds) {
-    localStorage.setItem('dashboard_habit_thresholds', JSON.stringify(remoteData.settings.thresholds));
+  // 1. Habits history & thresholds
+  if (doc.habits) {
+    saveAllHabitsData(doc.habits);
+  }
+  if (doc.thresholds) {
+    localStorage.setItem('dashboard_habit_thresholds_v2', JSON.stringify(doc.thresholds));
   }
 
-  await db.transaction('rw', [db.todos, db.thoughts, db.daily_logs], async () => {
+  // 2. Tasks: decrypt values and write to Dexie
+  const decryptedTasks = [];
+  if (doc.tasks && typeof doc.tasks === 'object') {
+    for (const [id, t] of Object.entries(doc.tasks)) {
+      if (!t) continue;
+      const title = await decryptRecordValue(t.val, password);
+      decryptedTasks.push({
+        id: t.id || id,
+        title: title || '',
+        completed: Boolean(t.completed),
+        created_at: t.created_at || new Date().toISOString(),
+        updated_at: t.updated_at || new Date().toISOString(),
+        deleted_at: null,
+      });
+    }
+  }
+
+  // 3. Thoughts: decrypt values and write to Dexie
+  const decryptedThoughts = [];
+  if (doc.thoughts && typeof doc.thoughts === 'object') {
+    for (const [id, th] of Object.entries(doc.thoughts)) {
+      if (!th) continue;
+      const content = await decryptRecordValue(th.val, password);
+      decryptedThoughts.push({
+        id: th.id || id,
+        content: content || '',
+        created_at: th.created_at || new Date().toISOString(),
+        updated_at: th.updated_at || new Date().toISOString(),
+        deleted_at: null,
+      });
+    }
+  }
+
+  await db.transaction('rw', [db.todos, db.thoughts], async () => {
     await db.todos.clear();
     await db.thoughts.clear();
-    await db.daily_logs.clear();
-
-    if (Array.isArray(remoteData.todos) && remoteData.todos.length > 0) {
-      await db.todos.bulkPut(remoteData.todos);
-    }
-    if (Array.isArray(remoteData.thoughts) && remoteData.thoughts.length > 0) {
-      await db.thoughts.bulkPut(remoteData.thoughts);
-    }
-    if (Array.isArray(remoteData.daily_logs) && remoteData.daily_logs.length > 0) {
-      await db.daily_logs.bulkPut(remoteData.daily_logs);
-    }
+    if (decryptedTasks.length > 0) await db.todos.bulkPut(decryptedTasks);
+    if (decryptedThoughts.length > 0) await db.thoughts.bulkPut(decryptedThoughts);
   });
 
   notifyDataChanged();
 }
 
 /**
- * Merge remote updates into local device if newer
- */
-async function mergeRemoteIfNewer(remoteData) {
-  if (!remoteData) return false;
-  let changed = false;
-  if (remoteData.settings?.thresholds) {
-    localStorage.setItem('dashboard_habit_thresholds', JSON.stringify(remoteData.settings.thresholds));
-  }
-
-  await db.transaction('rw', [db.todos, db.thoughts, db.daily_logs], async () => {
-    // 1. Todos
-    if (Array.isArray(remoteData.todos)) {
-      const current = await db.todos.toArray();
-      const currentMap = new Map(current.map((t) => [t.id, t]));
-      for (const r of remoteData.todos) {
-        if (!r?.id) continue;
-        const l = currentMap.get(r.id);
-        const rTime = new Date(r.updated_at || r.created_at || 0).getTime();
-        const lTime = l ? new Date(l.updated_at || l.created_at || 0).getTime() : -1;
-        if (!l || rTime >= lTime) {
-          await db.todos.put(r);
-          changed = true;
-        }
-      }
-    }
-
-    // 2. Thoughts
-    if (Array.isArray(remoteData.thoughts)) {
-      const current = await db.thoughts.toArray();
-      const currentMap = new Map(current.map((t) => [t.id, t]));
-      for (const r of remoteData.thoughts) {
-        if (!r?.id) continue;
-        const l = currentMap.get(r.id);
-        const rTime = new Date(r.updated_at || r.created_at || 0).getTime();
-        const lTime = l ? new Date(l.updated_at || l.created_at || 0).getTime() : -1;
-        if (!l || rTime >= lTime) {
-          await db.thoughts.put(r);
-          changed = true;
-        }
-      }
-    }
-
-    // 3. Daily Logs
-    if (Array.isArray(remoteData.daily_logs)) {
-      const current = await db.daily_logs.toArray();
-      const currentMap = new Map(current.map((dl) => [dl.date, dl]));
-      for (const r of remoteData.daily_logs) {
-        if (!r?.date) continue;
-        const l = currentMap.get(r.date);
-        const rTime = new Date(r.updated_at || 0).getTime();
-        const lTime = l ? new Date(l.updated_at || 0).getTime() : -1;
-        if (!l || rTime >= lTime) {
-          await db.daily_logs.put({ ...(l || {}), ...r });
-          changed = true;
-        }
-      }
-    }
-  });
-
-  if (changed) {
-    notifyDataChanged();
-  }
-  return changed;
-}
-
-/**
- * Connect to URL: ONLY fetch data first and overwrite existing local data.
- * The device only ever holds ONE single npoint URL.
+ * Connect to URL: fetches cloud data first and overwrites local device.
+ * Only ONE npoint URL is ever stored on the device.
  */
 export async function connectAndFetchFirst(rawUrl, password = '', encryptionMode = 'password') {
   if (!rawUrl || !rawUrl.trim()) {
@@ -364,36 +308,211 @@ export async function connectAndFetchFirst(rawUrl, password = '', encryptionMode
   }
 
   const normalized = normalizeNpointUrl(rawUrl);
+  setSyncState('syncing');
 
-  // 1. Fetch remote data first
-  const remote = await fetchRemoteSnapshot(normalized, password);
+  try {
+    const doc = await fetchRemoteDoc(normalized);
 
-  // 2. Only store this single URL in localStorage
-  setNpointUrl(normalized);
-  setEncryptionMode(encryptionMode);
-  setCachedPassword(password, true);
+    // Only store this single URL
+    setNpointUrl(normalized);
+    setEncryptionMode(encryptionMode);
+    setCachedPassword(password, true);
 
-  // 3. If remote already has data, overwrite this device's local database!
-  if (remote && !remote.isEmpty && remote.data) {
-    await overwriteLocalDevice(remote.data);
-    lastSyncTimestamp = remote.envelope?.updated_at || new Date().toISOString();
-    localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
-  } else {
-    // If the remote bin was freshly created and completely empty, push local state to initialize it
-    const local = await getLocalSnapshot();
-    const env = await packageEnvelope(local, encryptionMode, password);
-    await pushRemoteSnapshot(normalized, env);
-    lastSyncTimestamp = new Date().toISOString();
-    localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
+    if (doc && (doc.habits || doc.tasks || doc.thoughts)) {
+      // Overwrite local device with fetched remote data
+      await overwriteDeviceFromDoc(doc, password);
+    } else {
+      // If remote bin is brand new / empty, initialize with fixed structure
+      const newDoc = createDefaultDocument();
+      await pushRemoteDoc(normalized, newDoc);
+      await overwriteDeviceFromDoc(newDoc, password);
+    }
+
+    setSyncState('synced');
+    return { success: true };
+  } catch (err) {
+    if (err.code === 'PASSWORD_REQUIRED' || err.code === 'INVALID_PASSWORD') {
+      setSyncState('locked', err.message);
+    } else {
+      setSyncState('error', err.message);
+    }
+    throw err;
   }
-
-  setSyncState('synced');
-  return { success: true };
 }
 
 /**
- * PULL ONLY from npoint.io (Read-only, never pushes back to cloud)
- * Safely fetches latest changes from laptop/phone.
+ * Fetch-latest-then-update pattern:
+ * 1. GET latest JSON from npoint
+ * 2. Check if operation is possible & apply mutation
+ * 3. POST back updated JSON
+ * 4. Update local state
+ */
+export async function applyRemoteMutation(mutateFn) {
+  const url = getNpointUrl();
+  if (!url) return null;
+  if (!navigator.onLine) {
+    setSyncState('offline');
+    return null;
+  }
+
+  try {
+    setSyncState('syncing');
+    const doc = (await fetchRemoteDoc(url)) || createDefaultDocument();
+    const password = getCachedPassword();
+
+    // Check if doc structure exists, fill defaults if empty
+    if (!doc.habits) doc.habits = {};
+    if (!doc.thresholds) doc.thresholds = {};
+    if (!doc.tasks) doc.tasks = {};
+    if (!doc.thoughts) doc.thoughts = {};
+
+    // Execute mutation on the latest doc
+    const possible = await mutateFn(doc, password);
+    if (possible === false) {
+      console.warn('[Sync] Mutation not possible on latest remote doc');
+      setSyncState('synced');
+      return false;
+    }
+
+    await pushRemoteDoc(url, doc);
+    setSyncState('synced');
+    return true;
+  } catch (err) {
+    console.error('[Sync] Mutation error:', err);
+    setSyncState('error', err.message);
+    throw err;
+  }
+}
+
+/**
+ * Specific Mutator: Add or edit task with encrypted value
+ */
+export async function syncSaveTask(task) {
+  const password = getCachedPassword();
+  const encryptedVal = await encryptRecordValue(task.title, password);
+
+  // 1. Update local Dexie instantly
+  await db.todos.put(task);
+  notifyDataChanged();
+
+  // 2. Fetch latest and update remote
+  await applyRemoteMutation(async (doc) => {
+    doc.tasks[task.id] = {
+      id: task.id,
+      completed: Boolean(task.completed),
+      created_at: task.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      val: encryptedVal,
+    };
+    return true;
+  });
+}
+
+/**
+ * Specific Mutator: Toggle task completed status
+ */
+export async function syncToggleTask(taskId) {
+  const existing = await db.todos.get(taskId);
+  if (!existing) return;
+
+  const updated = { ...existing, completed: !existing.completed, updated_at: new Date().toISOString() };
+  await db.todos.put(updated);
+  notifyDataChanged();
+
+  await applyRemoteMutation(async (doc) => {
+    if (!doc.tasks?.[taskId]) {
+      return false; // Task does not exist on remote
+    }
+    doc.tasks[taskId].completed = updated.completed;
+    doc.tasks[taskId].updated_at = updated.updated_at;
+    return true;
+  });
+}
+
+/**
+ * Specific Mutator: Remove task
+ */
+export async function syncRemoveTask(taskId) {
+  await db.todos.delete(taskId);
+  notifyDataChanged();
+
+  await applyRemoteMutation(async (doc) => {
+    if (doc.tasks && doc.tasks[taskId]) {
+      delete doc.tasks[taskId];
+      return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * Specific Mutator: Add or edit thought with encrypted value
+ */
+export async function syncSaveThought(thought) {
+  const password = getCachedPassword();
+  const encryptedVal = await encryptRecordValue(thought.content, password);
+
+  await db.thoughts.put(thought);
+  notifyDataChanged();
+
+  await applyRemoteMutation(async (doc) => {
+    doc.thoughts[thought.id] = {
+      id: thought.id,
+      created_at: thought.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      val: encryptedVal,
+    };
+    return true;
+  });
+}
+
+/**
+ * Specific Mutator: Remove thought
+ */
+export async function syncRemoveThought(thoughtId) {
+  await db.thoughts.delete(thoughtId);
+  notifyDataChanged();
+
+  await applyRemoteMutation(async (doc) => {
+    if (doc.thoughts && doc.thoughts[thoughtId]) {
+      delete doc.thoughts[thoughtId];
+      return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * Specific Mutator: Update habit count for a category on current day
+ */
+export async function syncUpdateHabitCount(catId, dateIso, newCount) {
+  await applyRemoteMutation(async (doc) => {
+    if (!doc.habits[catId]) doc.habits[catId] = {};
+    doc.habits[catId][dateIso] = newCount;
+    return true;
+  });
+}
+
+/**
+ * Specific Mutator: Update habit threshold
+ */
+export async function syncUpdateThreshold(catId, newThresh) {
+  await applyRemoteMutation(async (doc) => {
+    if (!doc.thresholds) doc.thresholds = {};
+    doc.thresholds[catId] = newThresh;
+    return true;
+  });
+}
+let debounceTimer = null;
+export function triggerDebouncedSync(delayMs = 800) {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    pullFromNpoint(true);
+  }, delayMs);
+}
+
+/**
+ * PULL ONLY from npoint.io (Read-only, updates local device if remote changed)
  */
 export async function pullFromNpoint(silent = false) {
   const url = getNpointUrl();
@@ -407,26 +526,22 @@ export async function pullFromNpoint(silent = false) {
     return { success: false, reason: 'OFFLINE' };
   }
 
-  if (isSyncInProgress) {
-    return { success: false, reason: 'BUSY' };
-  }
+  if (isSyncInProgress) return { success: false, reason: 'BUSY' };
 
   isSyncInProgress = true;
   if (!silent) setSyncState('syncing');
 
   try {
+    const doc = await fetchRemoteDoc(url);
     const password = getCachedPassword();
-    const remote = await fetchRemoteSnapshot(url, password);
 
-    if (remote && !remote.isEmpty && remote.data) {
-      // Fingerprint / timestamp check
-      const currentRemoteHash = remote.envelope?.ciphertext || JSON.stringify(remote.data);
-      if (currentRemoteHash !== lastRemoteHash) {
-        lastRemoteHash = currentRemoteHash;
-        await mergeRemoteIfNewer(remote.data);
-        lastSyncTimestamp = remote.envelope?.updated_at || new Date().toISOString();
-        localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
-      }
+    // Check if remote doc changed
+    const docHash = doc.updated_at || JSON.stringify(doc);
+    if (docHash !== lastRemoteDocHash) {
+      lastRemoteDocHash = docHash;
+      await overwriteDeviceFromDoc(doc, password);
+      lastSyncTimestamp = doc.updated_at || new Date().toISOString();
+      localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
     }
 
     setSyncState('synced');
@@ -435,9 +550,7 @@ export async function pullFromNpoint(silent = false) {
     if (err.code === 'PASSWORD_REQUIRED' || err.code === 'INVALID_PASSWORD') {
       setSyncState('locked', err.message);
     } else {
-      if (!silent) {
-        setSyncState('error', err.message);
-      }
+      if (!silent) setSyncState('error', err.message);
     }
     return { success: false, error: err.message };
   } finally {
@@ -446,131 +559,83 @@ export async function pullFromNpoint(silent = false) {
 }
 
 /**
- * PUSH local changes to npoint.io (triggered on user mutation)
- */
-export async function pushToNpoint() {
-  const url = getNpointUrl();
-  if (!url) {
-    setSyncState('needs_setup');
-    return { success: false, reason: 'NEEDS_SETUP' };
-  }
-
-  if (!navigator.onLine) {
-    setSyncState('offline');
-    return { success: false, reason: 'OFFLINE' };
-  }
-
-  if (isSyncInProgress) {
-    setTimeout(pushToNpoint, 800);
-    return { success: false, reason: 'QUEUED' };
-  }
-
-  isSyncInProgress = true;
-  setSyncState('syncing');
-
-  try {
-    const encMode = getEncryptionMode();
-    const password = getCachedPassword();
-    const localSnapshot = await getLocalSnapshot();
-    const envelope = await packageEnvelope(localSnapshot, encMode, password);
-
-    await pushRemoteSnapshot(url, envelope);
-
-    lastRemoteHash = envelope.ciphertext || JSON.stringify(envelope.data);
-    lastSyncTimestamp = envelope.updated_at || new Date().toISOString();
-    localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
-
-    setSyncState('synced');
-    return { success: true };
-  } catch (err) {
-    console.error('[Sync] Push error:', err);
-    setSyncState('error', err.message || 'Push failed');
-    return { success: false, error: err.message };
-  } finally {
-    isSyncInProgress = false;
-  }
-}
-
-/**
- * Main bidirectional sync (used for manual "Sync Now" button)
+ * Manual Sync button handler
  */
 export async function syncWithNpoint() {
-  const pullRes = await pullFromNpoint(false);
-  if (!pullRes.success && pullRes.reason === 'LOCKED') return pullRes;
-  return await pushToNpoint();
-}
-
-/**
- * Debounced trigger when local data changes
- */
-export function triggerDebouncedSync(delayMs = 800) {
-  clearTimeout(debounceTimeout);
-  if (syncState === 'synced') {
-    setSyncState('syncing');
-  }
-  debounceTimeout = setTimeout(() => {
-    pushToNpoint();
-  }, delayMs);
-}
-
-/**
- * Unlock and authenticate with a given password
- */
-export async function unlockWithPassword(password, rememberOnDevice = true) {
-  const url = getNpointUrl();
-  if (!url) {
-    setCachedPassword(password, rememberOnDevice);
-    return { success: true };
-  }
-
-  // Fetch remote and verify password
-  const response = await fetch(url, { cache: 'no-cache' });
-  if (!response.ok) {
-    throw new Error(`Failed to contact npoint.io (HTTP ${response.status})`);
-  }
-
-  const envelope = await response.json();
-  if (envelope && envelope.encrypted) {
-    const isValid = await verifyPassword(envelope, password);
-    if (!isValid) {
-      throw new Error('Incorrect password. Please try again.');
-    }
-  }
-
-  setCachedPassword(password, rememberOnDevice);
-  setEncryptionMode('password');
   return await pullFromNpoint(false);
 }
 
 /**
- * Change the encryption password or toggle encryption mode
+ * Unlock and authenticate
+ */
+export async function unlockWithPassword(password, rememberOnDevice = true) {
+  const url = getNpointUrl();
+  setCachedPassword(password, rememberOnDevice);
+  setEncryptionMode('password');
+
+  if (!url) return { success: true };
+  return await pullFromNpoint(false);
+}
+
+/**
+ * Change encryption password or toggle encryption
  */
 export async function changeEncryptionSettings(newMode, newPassword = '', rememberOnDevice = true) {
   const url = getNpointUrl();
-  if (!url) {
-    throw new Error('Configure npoint.io URL before changing encryption settings');
-  }
-
-  const localSnapshot = await getLocalSnapshot();
-  const newEnvelope = await packageEnvelope(localSnapshot, newMode, newPassword);
-  await pushRemoteSnapshot(url, newEnvelope);
+  if (!url) throw new Error('Configure npoint.io URL first');
 
   setEncryptionMode(newMode);
   setCachedPassword(newPassword, rememberOnDevice);
-  lastRemoteHash = newEnvelope.ciphertext || JSON.stringify(newEnvelope.data);
-  lastSyncTimestamp = new Date().toISOString();
-  localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
 
-  setSyncState('synced');
+  // Re-encrypt all tasks and thoughts on remote
+  await applyRemoteMutation(async (doc) => {
+    // Read local decrypted tasks and re-encrypt
+    const tasks = await db.todos.toArray();
+    for (const t of tasks) {
+      const val = newMode === 'password' && newPassword ? await encryptRecordValue(t.title, newPassword) : t.title;
+      doc.tasks[t.id] = {
+        id: t.id,
+        completed: Boolean(t.completed),
+        created_at: t.created_at,
+        updated_at: new Date().toISOString(),
+        val,
+      };
+    }
+
+    const thoughts = await db.thoughts.toArray();
+    for (const th of thoughts) {
+      const val = newMode === 'password' && newPassword ? await encryptRecordValue(th.content, newPassword) : th.content;
+      doc.thoughts[th.id] = {
+        id: th.id,
+        created_at: th.created_at,
+        updated_at: new Date().toISOString(),
+        val,
+      };
+    }
+    return true;
+  });
+
   return { success: true };
 }
 
 /**
- * Export all data as unencrypted plain JSON file
+ * Export unencrypted JSON backup
  */
 export async function exportPlainJsonBackup() {
-  const snapshot = await getLocalSnapshot();
-  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+  const [tasks, thoughts] = await Promise.all([db.todos.toArray(), db.thoughts.toArray()]);
+  const habits = loadAllHabitsData();
+  const thresholds = getHabitThresholds();
+
+  const backup = {
+    version: 2,
+    exported_at: new Date().toISOString(),
+    habits,
+    thresholds,
+    tasks,
+    thoughts,
+  };
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const downloadUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = downloadUrl;
@@ -580,45 +645,39 @@ export async function exportPlainJsonBackup() {
 }
 
 /**
- * Import and replace/merge from plain JSON backup
+ * Import JSON backup
  */
 export async function importPlainJsonBackup(jsonData) {
   if (!jsonData || typeof jsonData !== 'object') {
-    throw new Error('Invalid JSON file format');
+    throw new Error('Invalid backup JSON format');
   }
 
-  if (Array.isArray(jsonData.todos)) {
-    for (const t of jsonData.todos) await db.todos.put(t);
+  if (jsonData.habits) saveAllHabitsData(jsonData.habits);
+  if (jsonData.thresholds) localStorage.setItem('dashboard_habit_thresholds_v2', JSON.stringify(jsonData.thresholds));
+
+  if (Array.isArray(jsonData.tasks)) {
+    await db.todos.clear();
+    for (const t of jsonData.tasks) await syncSaveTask(t);
   }
   if (Array.isArray(jsonData.thoughts)) {
-    for (const th of jsonData.thoughts) await db.thoughts.put(th);
-  }
-  if (Array.isArray(jsonData.daily_logs)) {
-    for (const dl of jsonData.daily_logs) await db.daily_logs.put(dl);
+    await db.thoughts.clear();
+    for (const th of jsonData.thoughts) await syncSaveThought(th);
   }
 
   notifyDataChanged();
-  triggerDebouncedSync(100);
 }
 
 /**
- * Initialize engine lifecycle listeners:
- * - Pull on app mount
- * - Pull on window focus / tab visibility change (instant cross-device sync)
- * - Periodic background pull every 12 seconds
+ * Initialize sync listeners:
+ * - Pull on mount
+ * - Pull on tab focus / visibilitychange (instant phone <-> laptop sync)
+ * - Periodic background pull every 10s
  */
 export function initNpointSync() {
-  // 1. Network status listeners
-  window.addEventListener('online', () => {
-    pullFromNpoint(true);
-  });
+  window.addEventListener('online', () => pullFromNpoint(true));
+  window.addEventListener('offline', () => setSyncState('offline'));
 
-  window.addEventListener('offline', () => {
-    setSyncState('offline');
-  });
-
-  // 2. Active Tab / Phone App visibility listeners:
-  // When switching between phone and laptop, pulling happens instantly!
+  // Immediate pull when switching tabs or opening phone browser
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       pullFromNpoint(true);
@@ -629,14 +688,13 @@ export function initNpointSync() {
     pullFromNpoint(true);
   });
 
-  // 3. Periodic background pull every 12s when online
+  // Background interval polling every 10s
   setInterval(() => {
     if (navigator.onLine && document.visibilityState === 'visible') {
       pullFromNpoint(true);
     }
-  }, 12000);
+  }, 10000);
 
-  // 4. Initial check on mount
   const url = getNpointUrl();
   if (!url) {
     setSyncState('needs_setup');
