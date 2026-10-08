@@ -12,8 +12,10 @@ export default function HabitCard({
   streak = 0,
   historyMap = {},
   onAdjustToday,
+  stepOverride = null,
 }) {
   const { id, title, icon, colorTheme, accentColor, step, formatValue } = category;
+  const activeStep = stepOverride || step;
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedMonthOffset, setSelectedMonthOffset] = useState(0); // 0 = current month, 1 = last month...
 
@@ -104,9 +106,9 @@ export default function HabitCard({
         <div className="counter-stepper" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <button
             className="stepper-btn"
-            onClick={() => onAdjustToday(id, -step)}
+            onClick={() => onAdjustToday(id, -activeStep)}
             disabled={todayVal <= 0}
-            aria-label={`Decrease today's ${title} by ${step}`}
+            aria-label={`Decrease today's ${title} by ${activeStep}`}
             style={{
               width: '38px',
               height: '38px',
@@ -125,8 +127,8 @@ export default function HabitCard({
           </button>
           <button
             className="stepper-btn"
-            onClick={() => onAdjustToday(id, step)}
-            aria-label={`Increase today's ${title} by ${step}`}
+            onClick={() => onAdjustToday(id, activeStep)}
+            aria-label={`Increase today's ${title} by ${activeStep}`}
             style={{
               width: '38px',
               height: '38px',

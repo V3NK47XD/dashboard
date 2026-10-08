@@ -198,12 +198,6 @@ export default function Settings() {
 
   return (
     <div className="page-responsive-container">
-      <div>
-        <h1 style={{ margin: '0 0 0.25rem' }}>Settings & Storage</h1>
-        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          npoint.io storage bin, AES-256 client-side encryption, and offline backups
-        </p>
-      </div>
 
       {/* 1. npoint.io Bin Configuration */}
       <div

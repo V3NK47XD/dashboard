@@ -60,91 +60,110 @@ export default function TodoList() {
     return true;
   });
 
-  const pendingCount = todos.filter((t) => !t.completed).length;
+  const activeCount = todos.filter((t) => !t.completed).length;
+  const completedCount = todos.filter((t) => t.completed).length;
 
   return (
-    <div
-      className="card"
-      style={{
-        padding: '1.5rem',
-        backgroundColor: '#131313',
-        border: '1.5px solid rgba(59, 130, 246, 0.45)',
-        borderTop: '4px solid #3b82f6',
-        borderRadius: '16px',
-        backgroundImage: 'radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 65%)',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(59, 130, 246, 0.1)',
-      }}
-    >
-      <div className="card-header" style={{ marginBottom: '1.25rem' }}>
-        <div>
-          <h2 className="card-title" style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>Tasks & Todos</h2>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
-            {pendingCount} remaining • Encrypted & offline-ready
-          </p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.6rem' }}>
+      {/* Filter Selector & Counts Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.2rem' }}>
         <div style={{ display: 'flex', gap: '0.35rem' }}>
-          {['all', 'active', 'completed'].map((f) => (
+          {[
+            { id: 'all', label: 'All', count: todos.length },
+            { id: 'active', label: 'Active', count: activeCount },
+            { id: 'completed', label: 'Done', count: completedCount },
+          ].map(({ id: f, label, count }) => (
             <button
               key={f}
               className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}
               style={{
-                textTransform: 'capitalize',
-                fontSize: '0.78rem',
-                border: filter === f ? '1px solid #863bff' : '1px solid #333',
+                fontSize: '0.74rem',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '8px',
+                border: filter === f ? '1px solid #3b82f6' : '1px solid #2a2a2a',
+                backgroundColor: filter === f ? '#1d4ed8' : '#141414',
+                color: '#ffffff',
               }}
               onClick={() => setFilter(f)}
             >
-              {f}
+              {label} ({count})
             </button>
           ))}
         </div>
       </div>
 
-      {/* Input box with border */}
-      <form onSubmit={handleCreate} style={{ display: 'flex', gap: '0.65rem', marginBottom: '1.25rem' }}>
+      {/* Separate Input Box (Outside the List Card) */}
+      <form
+        onSubmit={handleCreate}
+        style={{
+          display: 'flex',
+          gap: '0.45rem',
+          padding: '0.35rem 0.45rem 0.35rem 0.75rem',
+          backgroundColor: '#121212',
+          border: '1.5px solid rgba(59, 130, 246, 0.4)',
+          borderRadius: '12px',
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
+        }}
+      >
         <input
           type="text"
           className="input"
-          placeholder="Add a new task and press Enter..."
+          placeholder="Add task and press Enter..."
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           style={{
             flex: 1,
-            backgroundColor: '#0c0c0c',
-            border: '2px solid rgba(59, 130, 246, 0.55)',
-            borderRadius: '12px',
-            padding: '0.75rem 1rem',
-            fontSize: '0.92rem',
+            backgroundColor: 'transparent',
+            border: 'none',
+            padding: '0.25rem 0',
+            fontSize: '0.85rem',
             color: '#ffffff',
             outline: 'none',
-            boxShadow: '0 0 12px rgba(59, 130, 246, 0.12)',
           }}
-          onFocus={(e) => (e.target.style.borderColor = '#60a5fa')}
-          onBlur={(e) => (e.target.style.borderColor = 'rgba(59, 130, 246, 0.55)')}
         />
         <button
           type="submit"
-          className="btn btn-primary"
+          disabled={!newTitle.trim()}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.35rem',
-            padding: '0.7rem 1.25rem',
-            borderRadius: '12px',
-            fontWeight: 600,
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            justifyContent: 'center',
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            backgroundColor: newTitle.trim() ? '#3b82f6' : '#222222',
+            border: 'none',
+            color: '#ffffff',
+            cursor: newTitle.trim() ? 'pointer' : 'default',
+            opacity: newTitle.trim() ? 1 : 0.5,
+            transition: 'all 0.15s ease',
           }}
+          aria-label="Add task"
         >
-          <Plus size={18} />
-          <span>Add</span>
+          <Plus size={16} />
         </button>
       </form>
 
-      {/* Todo items with borders */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+      {/* Scrollable Tasks List Container Card */}
+      <div
+        className="card"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '0.65rem 0.75rem',
+          backgroundColor: '#111111',
+          border: '1.5px solid rgba(59, 130, 246, 0.3)',
+          borderTop: '3px solid #3b82f6',
+          borderRadius: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.45rem',
+        }}
+      >
         {filteredTodos.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            No tasks found in this view.
+          <div style={{ textAlign: 'center', margin: 'auto', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            No tasks in this view.
           </div>
         ) : (
           filteredTodos.map((todo) => (
@@ -155,13 +174,13 @@ export default function TodoList() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.75rem 1rem',
+                padding: '0.45rem 0.65rem',
                 backgroundColor: todo.completed ? 'rgba(16, 185, 129, 0.04)' : 'rgba(59, 130, 246, 0.04)',
-                borderRadius: '12px',
-                border: todo.completed ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid rgba(59, 130, 246, 0.4)',
-                borderLeft: todo.completed ? '4px solid #10b981' : '4px solid #3b82f6',
-                boxShadow: todo.completed ? '0 2px 10px rgba(16, 185, 129, 0.1)' : '0 2px 10px rgba(59, 130, 246, 0.1)',
-                opacity: todo.completed ? 0.75 : 1,
+                borderRadius: '10px',
+                border: todo.completed ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)',
+                borderLeft: todo.completed ? '3px solid #10b981' : '3px solid #3b82f6',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.25)',
+                opacity: todo.completed ? 0.7 : 1,
                 transition: 'all 0.15s ease',
               }}
             >
@@ -170,11 +189,11 @@ export default function TodoList() {
                   type="button"
                   onClick={() => handleToggle(todo.id)}
                   style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '6px',
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '5px',
                     backgroundColor: todo.completed ? '#10b981' : 'transparent',
-                    border: todo.completed ? '1px solid #10b981' : '2px solid #555',
+                    border: todo.completed ? '1px solid #10b981' : '1.5px solid #666',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -184,7 +203,7 @@ export default function TodoList() {
                   }}
                   aria-label={todo.completed ? 'Mark uncompleted' : 'Mark completed'}
                 >
-                  {todo.completed && <Check size={14} color="#ffffff" strokeWidth={3} />}
+                  {todo.completed && <Check size={12} color="#ffffff" strokeWidth={3} />}
                 </button>
 
                 {editingId === todo.id ? (
@@ -199,9 +218,9 @@ export default function TodoList() {
                       flex: 1,
                       backgroundColor: '#0c0c0c',
                       border: '1.5px solid #3b82f6',
-                      borderRadius: '8px',
-                      padding: '0.35rem 0.65rem',
-                      fontSize: '0.92rem',
+                      borderRadius: '6px',
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.84rem',
                       color: '#fff',
                       outline: 'none',
                     }}
@@ -213,8 +232,8 @@ export default function TodoList() {
                       textDecoration: todo.completed ? 'line-through' : 'none',
                       color: todo.completed ? 'var(--text-muted)' : '#ffffff',
                       cursor: 'pointer',
-                      fontSize: '0.92rem',
-                      lineHeight: 1.4,
+                      fontSize: '0.84rem',
+                      lineHeight: 1.35,
                       wordBreak: 'break-word',
                     }}
                   >
@@ -223,22 +242,22 @@ export default function TodoList() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '0.35rem', marginLeft: '0.75rem', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: '0.25rem', marginLeft: '0.5rem', flexShrink: 0 }}>
                 <button
                   className="icon-btn"
                   title="Edit task"
                   onClick={() => handleStartEdit(todo)}
-                  style={{ width: '32px', height: '32px', border: '1px solid #333', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ width: '26px', height: '26px', border: '1px solid #282828', borderRadius: '6px' }}
                 >
-                  <Edit2 size={14} />
+                  <Edit2 size={12} />
                 </button>
                 <button
                   className="icon-btn"
                   title="Delete task"
                   onClick={() => handleDelete(todo.id)}
-                  style={{ width: '32px', height: '32px', border: '1px solid #333', borderRadius: '8px', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ width: '26px', height: '26px', border: '1px solid #282828', borderRadius: '6px', color: '#ef4444' }}
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={12} />
                 </button>
               </div>
             </div>

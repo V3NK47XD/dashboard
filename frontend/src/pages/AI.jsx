@@ -13,8 +13,7 @@ export default function AI() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content:
-        'Hello! I am your client-side personal assistant. I can inspect and modify your todos, thoughts, and daily habits directly in your browser. All updates are encrypted and synced to npoint.io.',
+      content: 'What would you like to update? You can add tasks, log thoughts, or check your habits.',
     },
   ]);
   const [inputValue, setInputValue] = useState('');
@@ -93,7 +92,7 @@ export default function AI() {
           ...updatedMessages,
           {
             role: 'assistant',
-            content: `✓ ${res}. Encrypted and queued for sync to npoint.io.`,
+            content: `✓ ${res}.`,
             tool_calls: [{ name: 'todo_add', args: { title } }],
           },
         ]);
@@ -110,7 +109,7 @@ export default function AI() {
           ...updatedMessages,
           {
             role: 'assistant',
-            content: `✓ ${res}. Saved locally and encrypted to npoint.io.`,
+            content: `✓ ${res}.`,
             tool_calls: [{ name: 'thought_add', args: { content } }],
           },
         ]);
@@ -244,22 +243,7 @@ export default function AI() {
         height: '100%',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.75rem',
-        }}
-      >
-        <div>
-          <h1 style={{ margin: '0 0 0.2rem' }}>AI Assistant</h1>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Client-Side Execution • Direct IndexedDB MCP Tools
-          </p>
-        </div>
-
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.25rem' }}>
         <button className="btn btn-secondary btn-sm" onClick={() => setShowConfig(!showConfig)}>
           ⚙ AI Endpoint Settings
         </button>

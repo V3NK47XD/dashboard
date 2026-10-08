@@ -71,74 +71,46 @@ export default function Thoughts() {
   };
 
   return (
-    <div className="page-responsive-container" style={{ paddingBottom: '2rem' }}>
-      <div>
-        <h1 style={{ margin: '0 0 0.25rem' }}>Thoughts & Journal</h1>
-        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          Personal chronological thought stream • Messages to yourself
-        </p>
-      </div>
-
-      {/* Main Chat Box Container with Border */}
+    <div className="page-responsive-container fixed-viewport-page" style={{ paddingBottom: '0.25rem' }}>
+      {/* Main Messages Container Card with Border */}
       <div
         className="card"
         style={{
+          flex: 1,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          height: 'calc(100vh - 220px)',
-          minHeight: '520px',
-          maxHeight: '760px',
           padding: 0,
-          backgroundColor: '#131313',
-          border: '1.5px solid rgba(134, 59, 255, 0.45)',
-          borderTop: '4px solid #863bff',
-          borderRadius: '16px',
+          backgroundColor: '#121212',
+          border: '1.5px solid rgba(134, 59, 255, 0.4)',
+          borderTop: '3px solid #863bff',
+          borderRadius: '14px',
           overflow: 'hidden',
-          backgroundImage: 'radial-gradient(circle at top right, rgba(134, 59, 255, 0.12), transparent 70%)',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(134, 59, 255, 0.12)',
+          boxShadow: '0 6px 24px rgba(0, 0, 0, 0.45)',
         }}
       >
         {/* Chat Top Header with Border */}
         <div
           style={{
-            padding: '0.85rem 1.25rem',
-            borderBottom: '1.5px solid rgba(134, 59, 255, 0.25)',
-            backgroundColor: '#161616',
+            padding: '0.5rem 0.85rem',
+            borderBottom: '1px solid rgba(134, 59, 255, 0.2)',
+            backgroundColor: '#151515',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '1rem',
+            gap: '0.5rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(134, 59, 255, 0.15)',
-                border: '1px solid #863bff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1rem',
-              }}
-            >
-              💭
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#ffffff' }}>Thoughts Stream</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                {thoughts.length} {thoughts.length === 1 ? 'thought' : 'thoughts'} logged
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1rem' }}>💭</span>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              {thoughts.length} {thoughts.length === 1 ? 'thought' : 'thoughts'}
             </div>
           </div>
-
-          {/* Search Filter Box with Border */}
-          <div style={{ position: 'relative', width: '100%', maxWidth: '220px' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '160px' }}>
             <Search
-              size={14}
-              style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}
+              size={12}
+              style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}
             />
             <input
               type="text"
@@ -147,28 +119,27 @@ export default function Thoughts() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                paddingLeft: '28px',
-                paddingTop: '0.35rem',
-                paddingBottom: '0.35rem',
-                fontSize: '0.8rem',
+                paddingLeft: '24px',
+                paddingTop: '0.2rem',
+                paddingBottom: '0.2rem',
+                fontSize: '0.75rem',
                 backgroundColor: 'rgba(134, 59, 255, 0.05)',
-                border: '1.5px solid rgba(134, 59, 255, 0.4)',
-                borderRadius: '8px',
+                border: '1px solid rgba(134, 59, 255, 0.35)',
+                borderRadius: '6px',
               }}
             />
           </div>
         </div>
-
         {/* Scrollable Chat Area: Old things UP, new things DOWN */}
         <div
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '1.25rem',
+            padding: '0.75rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.85rem',
-            backgroundColor: '#0f0f0f',
+            gap: '0.5rem',
+            backgroundColor: '#0e0e0e',
           }}
         >
           {chronologicalThoughts.length === 0 ? (
@@ -194,16 +165,15 @@ export default function Thoughts() {
                     alignSelf: 'flex-start',
                     maxWidth: '85%',
                     backgroundColor: 'rgba(134, 59, 255, 0.04)',
-                    border: '1.5px solid rgba(134, 59, 255, 0.4)',
-                    borderLeft: '4px solid #863bff',
-                    borderRadius: '14px',
-                    padding: '0.85rem 1.1rem',
-                    boxShadow: '0 3px 12px rgba(0, 0, 0, 0.35), 0 0 10px rgba(134, 59, 255, 0.08)',
+                    border: '1px solid rgba(134, 59, 255, 0.35)',
+                    borderLeft: '3px solid #863bff',
+                    borderRadius: '10px',
+                    padding: '0.45rem 0.7rem',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                     position: 'relative',
-                    transition: 'border-color 0.15s ease',
                   }}
                 >
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.55, color: '#f0f0f0' }}>
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.84rem', lineHeight: 1.4, color: '#f0f0f0' }}>
                     {th.content}
                   </div>
 
@@ -213,8 +183,8 @@ export default function Thoughts() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: '1rem',
-                      marginTop: '0.5rem',
-                      fontSize: '0.72rem',
+                      marginTop: '0.35rem',
+                      fontSize: '0.68rem',
                       color: 'var(--text-muted)',
                     }}
                   >
@@ -240,7 +210,7 @@ export default function Thoughts() {
                       onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
                       onMouseLeave={(e) => (e.currentTarget.style.color = '#777')}
                     >
-                      <Trash2 size={12} />
+                      <Trash2 size={11} />
                     </button>
                   </div>
                 </div>
@@ -250,70 +220,69 @@ export default function Thoughts() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Bottom Chat Input Box with Border */}
-        <form
-          onSubmit={handleSendThought}
+      </div>
+
+      {/* Separate Chat Input Box (Outside the messages card at the bottom) */}
+      <form
+        onSubmit={handleSendThought}
+        style={{
+          marginTop: '0.45rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          padding: '0.35rem 0.45rem 0.35rem 0.75rem',
+          backgroundColor: '#121212',
+          border: '1.5px solid rgba(134, 59, 255, 0.45)',
+          borderRadius: '12px',
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
+        }}
+      >
+        <textarea
+          rows={1}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="What's on your mind?..."
+          disabled={isSending}
           style={{
-            padding: '0.85rem 1rem',
-            borderTop: '1.5px solid rgba(134, 59, 255, 0.25)',
-            backgroundColor: '#161616',
+            flex: 1,
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            fontSize: '0.85rem',
+            outline: 'none',
+            resize: 'none',
+            fontFamily: 'inherit',
+            lineHeight: 1.35,
+            padding: '0.2rem 0',
+            display: 'block',
+            boxSizing: 'border-box',
+          }}
+        />
+
+        <button
+          type="submit"
+          disabled={!inputText.trim() || isSending}
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            backgroundColor: inputText.trim() ? '#863bff' : '#222222',
+            border: 'none',
+            color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.65rem',
+            justifyContent: 'center',
+            cursor: inputText.trim() ? 'pointer' : 'default',
+            opacity: inputText.trim() ? 1 : 0.5,
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
           }}
+          aria-label="Send thought"
         >
-          <div style={{ flex: 1, position: 'relative' }}>
-            <textarea
-              rows={1}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="What's on your mind? (Press Enter to send)"
-              disabled={isSending}
-              style={{
-                width: '100%',
-                padding: '0.7rem 0.95rem',
-                backgroundColor: '#0c0c0c',
-                border: '1.5px solid rgba(134, 59, 255, 0.55)',
-                borderRadius: '12px',
-                color: '#ffffff',
-                fontSize: '0.9rem',
-                outline: 'none',
-                resize: 'none',
-                fontFamily: 'inherit',
-                lineHeight: 1.4,
-                display: 'block',
-                boxSizing: 'border-box',
-                boxShadow: '0 0 10px rgba(134, 59, 255, 0.1)',
-              }}
-              onFocus={(e) => (e.target.style.borderColor = '#a855f7')}
-              onBlur={(e) => (e.target.style.borderColor = 'rgba(134, 59, 255, 0.55)')}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={!inputText.trim() || isSending}
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              backgroundColor: inputText.trim() ? '#863bff' : '#262626',
-              border: `1px solid ${inputText.trim() ? '#9b51e0' : '#333333'}`,
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: inputText.trim() ? 'pointer' : 'not-allowed',
-              opacity: inputText.trim() ? 1 : 0.5,
-              transition: 'all 0.15s ease',
-            }}
-            aria-label="Send thought"
-          >
-            <Send size={18} />
-          </button>
-        </form>
-      </div>
+          <Send size={15} />
+        </button>
+      </form>
     </div>
   );
 }

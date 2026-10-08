@@ -5,6 +5,8 @@ import {
   loadAllHabitsData,
   getHabitThresholds,
   setHabitThreshold,
+  getHabitSteps,
+  setHabitStep,
   adjustTodayCategoryCount,
   calculateCategoryStreak,
   getTodayIso,
@@ -18,11 +20,14 @@ import {
 export default function Dashboard({ onNavigate }) {
   const [habitsData, setHabitsData] = useState(() => loadAllHabitsData());
   const [thresholds, setThresholds] = useState(() => getHabitThresholds());
+  const [steps, setSteps] = useState(() => getHabitSteps());
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const todayIso = useMemo(() => getTodayIso(), []);
 
   const loadAll = () => {
     setHabitsData(loadAllHabitsData());
     setThresholds(getHabitThresholds());
+    setSteps(getHabitSteps());
   };
 
   useEffect(() => {
@@ -79,6 +84,14 @@ export default function Dashboard({ onNavigate }) {
     }
   };
 
+  // Adjust increment step size
+  const handleAdjustStep = (catId, delta) => {
+    const current = steps[catId] || 1;
+    const next = Math.max(1, current + delta);
+    const updated = setHabitStep(catId, next);
+    setSteps({ ...updated });
+  };
+
   return (
     <div className="page-responsive-container">
       {/* Top Header */}
@@ -87,9 +100,6 @@ export default function Dashboard({ onNavigate }) {
           <h1 className="habit-header-title" style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>
             {formattedHeaderDate}
           </h1>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
-            8 Core Tracking Categories • 1-Year History
-          </p>
         </div>
 
         <div className="habit-header-actions">
@@ -124,132 +134,176 @@ export default function Dashboard({ onNavigate }) {
               streak={streak}
               historyMap={catHistory}
               onAdjustToday={handleAdjustToday}
+              stepOverride={steps[cat.id] || cat.step}
             />
           );
         })}
       </div>
 
-      {/* Habit Completion Thresholds Configuration Panel (Bottom of Page) */}
+      {/* Collapsible Targets & Increment Steps Configuration Panel */}
       <div
         className="card"
         style={{
-          marginTop: '0.5rem',
+          marginTop: '0.75rem',
           marginBottom: '4.5rem',
-          padding: '1.5rem',
+          padding: 0,
           backgroundColor: '#131313',
           borderRadius: '16px',
-          border: '1.5px solid rgba(134, 59, 255, 0.45)',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(134, 59, 255, 0.1)',
+          border: '1.5px solid rgba(255, 255, 255, 0.1)',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.2rem' }}>🎯</span>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: '#ffffff' }}>Habit Completion Targets</h2>
-          </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.35rem 0 0', lineHeight: 1.4 }}>
-            Adjust the completion threshold for each category. Controls streak qualification and the 5-level LeetCode heatmap intensity gradient.
-          </p>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
-          {HABIT_CATEGORIES.map((cat) => {
-            const currentThresh = thresholds[cat.id] || cat.defaultThreshold;
-            const targetLabel = cat.formatValue(currentThresh);
-
-            return (
-              <div
-                key={cat.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.8rem 1rem',
-                  backgroundColor: '#181818',
-                  borderRadius: '14px',
-                  border: `1.5px solid ${cat.accentColor}55`,
-                  borderLeft: `4px solid ${cat.accentColor}`,
-                  boxShadow: `0 2px 10px rgba(0, 0, 0, 0.3)`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>{cat.icon}</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#ffffff' }}>
-                      {cat.title}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Step: ±{cat.unit === 'min' ? `${cat.step}m` : `${cat.step} ${cat.unit}`}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <div
-                    style={{
-                      padding: '0.25rem 0.6rem',
-                      borderRadius: '8px',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                      color: cat.accentColor,
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      minWidth: '64px',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {targetLabel}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                    <button
-                      onClick={() => handleAdjustThreshold(cat.id, currentThresh - cat.step)}
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        border: `1.5px solid ${cat.accentColor}60`,
-                        backgroundColor: `${cat.accentColor}15`,
-                        color: '#ffffff',
-                        fontSize: '1.1rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={`Decrease ${cat.title} target by ${cat.step}`}
-                    >
-                      −
-                    </button>
-                    <button
-                      onClick={() => handleAdjustThreshold(cat.id, currentThresh + cat.step)}
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        border: `1.5px solid ${cat.accentColor}80`,
-                        backgroundColor: `${cat.accentColor}25`,
-                        color: '#ffffff',
-                        fontSize: '1.1rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={`Increase ${cat.title} target by ${cat.step}`}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+        <button
+          onClick={() => setIsConfigOpen(!isConfigOpen)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '1rem 1.25rem',
+            backgroundColor: isConfigOpen ? '#171717' : '#131313',
+            border: 'none',
+            borderBottom: isConfigOpen ? '1px solid #222222' : 'none',
+            color: '#ffffff',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'background-color 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontSize: '1.1rem' }}>⚙</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Targets & Increment Sizes</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Customize daily goals and stepper increments for each habit
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--text-muted)',
+              transform: isConfigOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+            }}
+          >
+            ▼
+          </div>
+        </button>
+
+        {isConfigOpen && (
+          <div style={{ padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0.85rem' }}>
+            {HABIT_CATEGORIES.map((cat) => {
+              const currentThresh = thresholds[cat.id] || cat.defaultThreshold;
+              const currentStep = steps[cat.id] || cat.step;
+              const targetLabel = cat.formatValue(currentThresh);
+              const stepLabel = `±${currentStep}${cat.unit === 'min' ? 'm' : cat.unit === 'g' || cat.unit === 'ml' ? cat.unit : ''}`;
+
+              return (
+                <div
+                  key={cat.id}
+                  style={{
+                    padding: '0.85rem 1rem',
+                    backgroundColor: '#171717',
+                    borderRadius: '14px',
+                    border: `1.5px solid ${cat.accentColor}40`,
+                    borderLeft: `4px solid ${cat.accentColor}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>{cat.icon}</span>
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#ffffff' }}>{cat.title}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    {/* Target / Goal control */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Goal:</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: cat.accentColor, minWidth: '45px' }}>{targetLabel}</span>
+                      <button
+                        onClick={() => handleAdjustThreshold(cat.id, Math.max(currentStep, currentThresh - currentStep))}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '7px',
+                          border: `1px solid ${cat.accentColor}50`,
+                          backgroundColor: '#202020',
+                          color: '#ffffff',
+                          fontSize: '1rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title={`Decrease ${cat.title} goal`}
+                      >
+                        −
+                      </button>
+                      <button
+                        onClick={() => handleAdjustThreshold(cat.id, currentThresh + currentStep)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '7px',
+                          border: `1px solid ${cat.accentColor}50`,
+                          backgroundColor: '#202020',
+                          color: '#ffffff',
+                          fontSize: '1rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title={`Increase ${cat.title} goal`}
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Increment Step control */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Step:</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#facc15', minWidth: '42px' }}>{stepLabel}</span>
+                      <button
+                        onClick={() => handleAdjustStep(cat.id, cat.unit === 'ml' ? -50 : cat.unit === 'min' ? -5 : -1)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '7px',
+                          border: '1px solid #444',
+                          backgroundColor: '#202020',
+                          color: '#ffffff',
+                          fontSize: '1rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title={`Decrease ${cat.title} step size`}
+                      >
+                        −
+                      </button>
+                      <button
+                        onClick={() => handleAdjustStep(cat.id, cat.unit === 'ml' ? 50 : cat.unit === 'min' ? 5 : 1)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '7px',
+                          border: '1px solid #444',
+                          backgroundColor: '#202020',
+                          color: '#ffffff',
+                          fontSize: '1rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title={`Increase ${cat.title} step size`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

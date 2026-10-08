@@ -24,7 +24,7 @@ export const HABIT_CATEGORIES = [
     colorTheme: 'habit-yellow',
     accentColor: '#facc15',
     unit: 'min',
-    step: 15,
+    step: 5,
     defaultThreshold: 30,
     formatValue: (val) => `${val || 0}m`,
   },
@@ -68,7 +68,7 @@ export const HABIT_CATEGORIES = [
     colorTheme: 'habit-purple',
     accentColor: '#a855f7',
     unit: 'min',
-    step: 15,
+    step: 5,
     defaultThreshold: 45,
     formatValue: (val) => `${val || 0}m`,
   },
@@ -79,7 +79,7 @@ export const HABIT_CATEGORIES = [
     colorTheme: 'habit-coral',
     accentColor: '#fb7185',
     unit: 'g',
-    step: 10,
+    step: 3,
     defaultThreshold: 120,
     formatValue: (val) => `${val || 0}g`,
   },
@@ -90,7 +90,7 @@ export const HABIT_CATEGORIES = [
     colorTheme: 'habit-green',
     accentColor: '#4ade80',
     unit: 'g',
-    step: 5,
+    step: 3,
     defaultThreshold: 30,
     formatValue: (val) => `${val || 0}g`,
   },
@@ -109,7 +109,7 @@ export const HABIT_CATEGORIES = [
 
 export const STORAGE_HABIT_DATA = 'dashboard_habits_store_v2';
 export const STORAGE_HABIT_THRESHOLDS = 'dashboard_habit_thresholds_v2';
-
+export const STORAGE_HABIT_STEPS = 'dashboard_habit_steps_v2';
 /**
  * Get current date ISO string (YYYY-MM-DD)
  */
@@ -147,6 +147,33 @@ export function setHabitThreshold(catId, newThreshold) {
   const minVal = cat ? cat.step : 1;
   current[catId] = Math.max(minVal, Number(newThreshold));
   localStorage.setItem(STORAGE_HABIT_THRESHOLDS, JSON.stringify(current));
+  return current;
+}
+
+/**
+ * Load increment steps from localStorage with defaults
+ */
+export function getHabitSteps() {
+  try {
+    const raw = localStorage.getItem(STORAGE_HABIT_STEPS);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Error reading steps:', e);
+  }
+  const defaults = {};
+  HABIT_CATEGORIES.forEach((cat) => {
+    defaults[cat.id] = cat.step;
+  });
+  return defaults;
+}
+
+/**
+ * Save increment step for a category
+ */
+export function setHabitStep(catId, newStep) {
+  const current = getHabitSteps();
+  current[catId] = Math.max(1, Number(newStep) || 1);
+  localStorage.setItem(STORAGE_HABIT_STEPS, JSON.stringify(current));
   return current;
 }
 

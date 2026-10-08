@@ -868,6 +868,22 @@ body {
   }
 }
 
+
+/* Fixed Viewport Page for Tasks & Thoughts (No outer page scroll, scroll only inside box) */
+.fixed-viewport-page {
+  height: calc(100dvh - 145px);
+  max-height: calc(100dvh - 145px);
+  overflow: hidden;
+  gap: 0.5rem;
+}
+
+@media (max-width: 767px) {
+  .fixed-viewport-page {
+    height: calc(100dvh - 135px);
+    max-height: calc(100dvh - 135px);
+    gap: 0.4rem;
+  }
+}
 /* Desktop Thoughts Grid */
 .thoughts-timeline-grid {
   display: flex;
