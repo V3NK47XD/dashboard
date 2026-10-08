@@ -64,7 +64,7 @@ export default function TodoList() {
   const completedCount = todos.filter((t) => t.completed).length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.6rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', gap: '0.5rem' }}>
       {/* Filter Selector & Counts Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.2rem' }}>
         <div style={{ display: 'flex', gap: '0.35rem' }}>

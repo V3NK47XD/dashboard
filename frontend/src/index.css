@@ -869,20 +869,45 @@ body {
 }
 
 
-/* Fixed Viewport Page for Tasks & Thoughts (No outer page scroll, scroll only inside box) */
-.fixed-viewport-page {
-  height: calc(100dvh - 145px);
-  max-height: calc(100dvh - 145px);
-  overflow: hidden;
-  gap: 0.5rem;
+/* Fixed Viewport Page for Tasks, Thoughts, and Timer (Zero outer page scroll, scroll only inside box) */
+.locked-app-shell {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding-bottom: 76px !important;
 }
 
-@media (max-width: 767px) {
-  .fixed-viewport-page {
-    height: calc(100dvh - 135px);
-    max-height: calc(100dvh - 135px);
-    gap: 0.4rem;
-  }
+.locked-app-shell main {
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.locked-app-shell .fixed-viewport-page {
+  flex: 1 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  gap: 0.45rem !important;
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.25rem !important;
+}
+
+.fixed-viewport-page {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 /* Desktop Thoughts Grid */
 .thoughts-timeline-grid {

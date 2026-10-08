@@ -4,6 +4,7 @@ import {
   CheckSquare,
   Sparkles,
   Settings as SettingsIcon,
+  Timer as TimerIcon,
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import SyncStatus from './components/SyncStatus';
@@ -15,6 +16,7 @@ import Todos from './pages/Todos';
 import Thoughts from './pages/Thoughts';
 import AI from './pages/AI';
 import Settings from './pages/Settings';
+import Timer from './pages/Timer';
 import { initNpointSync, subscribeSyncState, pullFromNpoint } from './sync/npointSync';
 
 export default function App() {
@@ -80,7 +82,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${['todos', 'thoughts', 'timer'].includes(currentPage) ? 'locked-app-shell' : ''}`}>
       {/* Top minimal bar for SyncStatus & branding on larger screens */}
       <header
         style={{
@@ -92,15 +94,36 @@ export default function App() {
           borderBottom: '1px solid #181818',
         }}
       >
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontWeight: 800, fontSize: '1.05rem' }}
-          onClick={() => navigate('dashboard')}
-        >
-          <span style={{ color: '#facc15' }}>✦</span>
-          <span>Personal OS</span>
-          <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500, border: '1px solid #282828', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-            npoint.io
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontWeight: 800, fontSize: '1.05rem' }}
+            onClick={() => navigate('dashboard')}
+          >
+            <span style={{ color: '#facc15' }}>✦</span>
+            <span>Personal OS</span>
+          </div>
+
+          <button
+            onClick={() => navigate('settings')}
+            title="Settings"
+            style={{
+              background: currentPage === 'settings' ? '#222222' : 'none',
+              border: '1px solid #282828',
+              borderRadius: '6px',
+              padding: '0.2rem 0.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              color: currentPage === 'settings' ? '#facc15' : '#888',
+              fontSize: '0.72rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <SettingsIcon size={12} strokeWidth={2.2} />
+            <span>Settings</span>
+          </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -118,6 +141,7 @@ export default function App() {
         {currentPage === 'todos' && <Todos />}
         {currentPage === 'thoughts' && <Thoughts />}
         {currentPage === 'ai' && <AI />}
+        {currentPage === 'timer' && <Timer />}
         {currentPage === 'settings' && <Settings />}
       </main>
 
@@ -177,14 +201,14 @@ export default function App() {
           <span className="nav-label">Thoughts</span>
         </button>
 
-        {/* Settings */}
+        {/* Timer */}
         <button
-          className={`nav-item ${currentPage === 'settings' ? 'active' : ''}`}
-          onClick={() => navigate('settings')}
-          aria-label="Settings"
+          className={`nav-item ${currentPage === 'timer' ? 'active' : ''}`}
+          onClick={() => navigate('timer')}
+          aria-label="Timer"
         >
-          <SettingsIcon className="nav-icon" size={20} strokeWidth={2.2} />
-          <span className="nav-label">Settings</span>
+          <TimerIcon className="nav-icon" size={20} strokeWidth={2.2} />
+          <span className="nav-label">Timer</span>
         </button>
       </nav>
 
