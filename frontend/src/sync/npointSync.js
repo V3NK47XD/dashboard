@@ -441,10 +441,45 @@ export async function applyRemoteMutation(mutateFn) {
   });
 }
 
+let debounceDrainTimer = null;
+
 /**
- * Drain queued offline mutations to npoint.io on reconnect or manual poll
+ * Rate-limiting debounce helper:
+ * Keeps mutations local for 2 seconds until no other action is performed.
+ * Then flushes/posts accumulated changes to npoint.io in a single batch request.
+ */
+export function scheduleDebouncedDrain(delayMs = 2000) {
+  if (debounceDrainTimer) {
+    clearTimeout(debounceDrainTimer);
+    debounceDrainTimer = null;
+  }
+
+  const url = getNpointUrl();
+  if (!url || !navigator.onLine) {
+    const q = getOfflineQueue();
+    if (q.length > 0) {
+      setSyncState('offline', `Saved locally (${q.length} pending sync)`);
+    } else {
+      setSyncState('offline');
+    }
+    return;
+  }
+
+  debounceDrainTimer = setTimeout(() => {
+    debounceDrainTimer = null;
+    drainOfflineQueue();
+  }, delayMs);
+}
+
+/**
+ * Drain queued offline mutations to npoint.io on reconnect, manual poll, or debounced flush
  */
 export async function drainOfflineQueue() {
+  if (debounceDrainTimer) {
+    clearTimeout(debounceDrainTimer);
+    debounceDrainTimer = null;
+  }
+
   const url = getNpointUrl();
   const queue = getOfflineQueue();
 
@@ -460,7 +495,6 @@ export async function drainOfflineQueue() {
   if (queue.length === 0) {
     return await pullFromNpoint(true);
   }
-
   return runSerializedMutation(async () => {
     try {
       isSyncInProgress = true;
@@ -555,32 +589,9 @@ export async function syncSaveTask(task) {
   await db.todos.put(task);
   notifyDataChanged();
 
-  // 2. Network sync or queue
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'task_save', task });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc, password) => {
-      doc.salt = doc.salt || generateSalt();
-      const encryptedVal = await encryptRecordValue(task.title, password, doc.salt);
-      doc.tasks[task.id] = {
-        id: task.id,
-        completed: Boolean(task.completed),
-        created_at: task.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        val: encryptedVal,
-      };
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Task save queued offline:', err);
-    enqueueOfflineMutation({ type: 'task_save', task });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'task_save', task });
+  scheduleDebouncedDrain(2000);
 }
 
 /**
@@ -594,25 +605,9 @@ export async function syncToggleTask(taskId) {
   await db.todos.put(updated);
   notifyDataChanged();
 
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'task_toggle', taskId });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc) => {
-      if (!doc.tasks || !doc.tasks[taskId]) return false;
-      doc.tasks[taskId].completed = updated.completed;
-      doc.tasks[taskId].updated_at = updated.updated_at;
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Task toggle queued offline:', err);
-    enqueueOfflineMutation({ type: 'task_toggle', taskId });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'task_toggle', taskId });
+  scheduleDebouncedDrain(2000);
 }
 
 /**
@@ -622,25 +617,9 @@ export async function syncRemoveTask(taskId) {
   await db.todos.delete(taskId);
   notifyDataChanged();
 
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'task_remove', taskId });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc) => {
-      if (doc.tasks && doc.tasks[taskId]) {
-        delete doc.tasks[taskId];
-      }
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Task remove queued offline:', err);
-    enqueueOfflineMutation({ type: 'task_remove', taskId });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'task_remove', taskId });
+  scheduleDebouncedDrain(2000);
 }
 
 /**
@@ -650,30 +629,9 @@ export async function syncSaveThought(thought) {
   await db.thoughts.put(thought);
   notifyDataChanged();
 
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'thought_save', thought });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc, password) => {
-      doc.salt = doc.salt || generateSalt();
-      const encryptedVal = await encryptRecordValue(thought.content, password, doc.salt);
-      doc.thoughts[thought.id] = {
-        id: thought.id,
-        created_at: thought.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        val: encryptedVal,
-      };
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Thought save queued offline:', err);
-    enqueueOfflineMutation({ type: 'thought_save', thought });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'thought_save', thought });
+  scheduleDebouncedDrain(2000);
 }
 
 /**
@@ -683,25 +641,9 @@ export async function syncRemoveThought(thoughtId) {
   await db.thoughts.delete(thoughtId);
   notifyDataChanged();
 
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'thought_remove', thoughtId });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc) => {
-      if (doc.thoughts && doc.thoughts[thoughtId]) {
-        delete doc.thoughts[thoughtId];
-      }
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Thought remove queued offline:', err);
-    enqueueOfflineMutation({ type: 'thought_remove', thoughtId });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'thought_remove', thoughtId });
+  scheduleDebouncedDrain(2000);
 }
 
 /**
@@ -720,35 +662,9 @@ export async function syncAdjustHabitToday(catId, delta) {
   saveAllHabitsData(habits);
   notifyDataChanged();
 
-  // 2. Network sync or queue
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'habit_delta', catId, delta, dateIso: todayIso });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return localNext;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc, password) => {
-      doc.salt = doc.salt || generateSalt();
-      let habitsMap = doc.habits;
-      if (typeof habitsMap === 'string' && habitsMap.startsWith('enc:v1:')) {
-        habitsMap = (await decryptRecordValue(habitsMap, password)) || {};
-      }
-      if (!habitsMap || typeof habitsMap !== 'object') habitsMap = {};
-
-      if (!habitsMap[catId]) habitsMap[catId] = {};
-      const currentRemote = habitsMap[catId][todayIso] || 0;
-      habitsMap[catId][todayIso] = Math.max(0, currentRemote + delta);
-
-      doc.habits = password ? await encryptRecordValue(habitsMap, password, doc.salt) : habitsMap;
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Habit delta queued offline:', err);
-    enqueueOfflineMutation({ type: 'habit_delta', catId, delta, dateIso: todayIso });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'habit_delta', catId, delta, dateIso: todayIso });
+  scheduleDebouncedDrain(2000);
 
   return localNext;
 }
@@ -760,38 +676,13 @@ export async function syncUpdateThreshold(catId, newThresh) {
   setHabitThreshold(catId, newThresh);
   notifyDataChanged();
 
-  const url = getNpointUrl();
-  if (!url || !navigator.onLine) {
-    enqueueOfflineMutation({ type: 'threshold_update', catId, newThresh });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-    return;
-  }
-
-  try {
-    await applyRemoteMutation(async (doc, password) => {
-      doc.salt = doc.salt || generateSalt();
-      let threshMap = doc.thresholds;
-      if (typeof threshMap === 'string' && threshMap.startsWith('enc:v1:')) {
-        threshMap = (await decryptRecordValue(threshMap, password)) || {};
-      }
-      if (!threshMap || typeof threshMap !== 'object') threshMap = {};
-
-      threshMap[catId] = Number(newThresh);
-      doc.thresholds = password ? await encryptRecordValue(threshMap, password, doc.salt) : threshMap;
-      return true;
-    });
-  } catch (err) {
-    console.warn('[Sync] Threshold update queued offline:', err);
-    enqueueOfflineMutation({ type: 'threshold_update', catId, newThresh });
-    setSyncState('offline', 'Saved locally (queued for sync)');
-  }
+  // 2. Queue and rate-limit remote sync (local for 2s until idle)
+  enqueueOfflineMutation({ type: 'threshold_update', catId, newThresh });
+  scheduleDebouncedDrain(2000);
 }
-let debounceTimer = null;
-export function triggerDebouncedSync(delayMs = 800) {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    pullFromNpoint(true);
-  }, delayMs);
+
+export function triggerDebouncedSync(delayMs = 2000) {
+  scheduleDebouncedDrain(delayMs);
 }
 
 /**
