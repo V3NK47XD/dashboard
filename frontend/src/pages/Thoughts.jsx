@@ -31,7 +31,7 @@ export default function Thoughts() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 800, margin: '0 auto', padding: '0 1.25rem' }}>
+    <div className="page-responsive-container">
       <div>
         <h1>Thoughts & Notes</h1>
         <p>Instant capture • Personal thought stream • Chronological timeline</p>
@@ -61,7 +61,7 @@ export default function Thoughts() {
             {searchQuery ? 'No thoughts matching search query.' : 'No thoughts yet. Capture what is on your mind above!'}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="thoughts-timeline-grid">
             {thoughts.map((th) => {
               const dateObj = new Date(th.created_at);
               const formattedDate = dateObj.toLocaleDateString(undefined, {

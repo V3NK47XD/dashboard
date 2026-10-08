@@ -80,7 +80,7 @@ export default function Dashboard({ onNavigate }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', maxWidth: 760, margin: '0 auto', padding: '0 0.75rem' }}>
+    <div className="page-responsive-container">
       {/* Top Header */}
       <div className="habit-header" style={{ marginBottom: '0.25rem' }}>
         <div>

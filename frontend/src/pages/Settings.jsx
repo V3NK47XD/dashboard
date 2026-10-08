@@ -197,7 +197,7 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 900, margin: '0 auto', padding: '0 1.25rem' }}>
+    <div className="page-responsive-container">
       <div>
         <h1 style={{ margin: '0 0 0.25rem' }}>Settings & Storage</h1>
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>

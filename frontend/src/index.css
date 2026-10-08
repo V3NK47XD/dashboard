@@ -189,15 +189,27 @@ body {
   border-right-color: transparent;
 }
 
-/* Habit Card (Image #2) */
+/* Habit Cards Grid */
 .habit-cards-stream {
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-  max-width: 650px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 1.25rem 1.5rem 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
+@media (max-width: 879px) {
+  .habit-cards-stream {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 880px) {
+  .habit-cards-stream {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
 }
 
 .habit-card {
@@ -823,5 +835,51 @@ body {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Page Responsive Shells */
+.page-responsive-container {
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  transition: max-width 0.2s ease;
+}
+
+@media (max-width: 767px) {
+  .page-responsive-container {
+    max-width: 600px;
+    padding: 0 0.75rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .page-responsive-container {
+    max-width: 960px;
+    padding: 0 1.5rem;
+  }
+}
+
+@media (min-width: 1100px) {
+  .page-responsive-container {
+    max-width: 1380px;
+    padding: 0 2rem;
+  }
+}
+
+/* Desktop Thoughts Grid */
+.thoughts-timeline-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 880px) {
+  .thoughts-timeline-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
 }

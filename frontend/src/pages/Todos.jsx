@@ -3,7 +3,7 @@ import TodoList from '../components/TodoList';
 
 export default function Todos() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 800, margin: '0 auto', padding: '0 1.25rem' }}>
+    <div className="page-responsive-container">
       <div>
         <h1>Tasks & Todos</h1>
         <p>Offline-first task management • Mutations sync automatically when connected</p>
