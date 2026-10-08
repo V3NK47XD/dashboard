@@ -39,7 +39,15 @@ export default function HabitCard({
   const targetLabel = formatValue(threshold);
 
   return (
-    <div className={`habit-card ${colorTheme}`} style={{ marginBottom: '1rem' }}>
+    <div
+      className={`habit-card ${colorTheme}`}
+      style={{
+        marginBottom: '1rem',
+        border: `1px solid ${accentColor}35`,
+        borderTop: `3px solid ${accentColor}`,
+        boxShadow: `0 4px 18px rgba(0, 0, 0, 0.4)`,
+      }}
+    >
       {/* 1. Header with Category, Icon & Streak */}
       <div className="habit-card-header" style={{ marginBottom: '0.75rem' }}>
         <div className="habit-info">
@@ -76,9 +84,9 @@ export default function HabitCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0.65rem 0.85rem',
-          backgroundColor: 'rgba(0, 0, 0, 0.35)',
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
           borderRadius: '12px',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
+          border: `1px solid ${accentColor}40`,
           marginBottom: '0.85rem',
         }}
       >
@@ -191,42 +199,51 @@ export default function HabitCard({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(24px, 1fr))',
-          gap: '4px',
-          padding: '0.5rem',
-          backgroundColor: 'rgba(0, 0, 0, 0.25)',
-          borderRadius: '10px',
-          border: '1px solid rgba(255, 255, 255, 0.04)',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(26px, 1fr))',
+          gap: '5px',
+          padding: '0.6rem',
+          backgroundColor: 'rgba(0, 0, 0, 0.35)',
+          borderRadius: '12px',
+          border: `1px solid ${accentColor}30`,
         }}
       >
         {heatmapDays.map((d) => {
           const isToday = d.dateIso === todayIso;
 
-          return (
-            <div
-              key={d.dateIso}
-              className={`matrix-pixel pixel-${colorTheme.replace('habit-', '')} level-${d.intensity}`}
-              style={{
-                width: '100%',
-                aspectRatio: '1',
-                borderRadius: '5px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                color: d.intensity >= 3 ? '#ffffff' : 'rgba(255, 255, 255, 0.4)',
-                border: isToday ? '1.5px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.05)',
-                boxShadow: isToday ? '0 0 6px rgba(255, 255, 255, 0.4)' : 'none',
-                cursor: 'default',
-                position: 'relative',
-              }}
-              title={`${d.dateIso}: ${formatValue(d.val)} (Target: ${targetLabel}) ${d.isValid ? '✓' : ''}`}
-            >
-              {d.day}
-            </div>
-          );
-        })}
+            const pixelBorder = isToday
+              ? '2px solid #ffffff'
+              : d.intensity >= 3
+              ? `1.5px solid ${accentColor}`
+              : d.intensity > 0
+              ? `1px solid ${accentColor}`
+              : `1px solid ${accentColor}45`;
+
+            return (
+              <div
+                key={d.dateIso}
+                className={`matrix-pixel pixel-${colorTheme.replace('habit-', '')} level-${d.intensity}`}
+                style={{
+                  width: '100%',
+                  aspectRatio: '1',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: d.intensity >= 3 ? '#ffffff' : 'rgba(255, 255, 255, 0.55)',
+                  border: pixelBorder,
+                  boxShadow: isToday ? `0 0 8px ${accentColor}` : d.intensity >= 3 ? `0 0 6px ${accentColor}66` : 'none',
+                  cursor: 'default',
+                  position: 'relative',
+                  transition: 'border-color 0.15s ease',
+                }}
+                title={`${d.dateIso}: ${formatValue(d.val)} (Target: ${targetLabel}) ${d.isValid ? '✓' : ''}`}
+              >
+                {d.day}
+              </div>
+            );
+          })}
       </div>
     </div>
   );

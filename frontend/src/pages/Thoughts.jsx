@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import ThoughtInput from '../components/ThoughtInput';
-import { getThoughts, searchThoughtsLocally, deleteThought } from '../db/thoughts';
+import React, { useState, useEffect, useRef } from 'react';
+import { getThoughts, searchThoughtsLocally, deleteThought, createThought } from '../db/thoughts';
 import { subscribeDataChanges } from '../sync/npointSync';
+import { Send, Trash2, Search } from 'lucide-react';
 
 export default function Thoughts() {
   const [thoughts, setThoughts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef(null);
 
   const loadThoughts = async () => {
     if (searchQuery.trim()) {
@@ -25,49 +28,157 @@ export default function Thoughts() {
     return () => unsub();
   }, [searchQuery]);
 
+  // Chronological order: oldest messages up, newest messages down (chat app format)
+  const chronologicalThoughts = [...thoughts].sort(
+    (a, b) => new Date(a.created_at) - new Date(b.created_at)
+  );
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [thoughts.length]);
+
+  const handleSendThought = async (e) => {
+    e?.preventDefault();
+    if (!inputText.trim() || isSending) return;
+
+    setIsSending(true);
+    try {
+      await createThought(inputText.trim());
+      setInputText('');
+      await loadThoughts();
+      setTimeout(scrollToBottom, 50);
+    } catch (err) {
+      console.warn('Error saving thought:', err);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendThought();
+    }
+  };
+
   const handleDelete = async (id) => {
     await deleteThought(id);
     loadThoughts();
   };
 
   return (
-    <div className="page-responsive-container">
+    <div className="page-responsive-container" style={{ paddingBottom: '2rem' }}>
       <div>
-        <h1>Thoughts & Notes</h1>
-        <p>Instant capture • Personal thought stream • Chronological timeline</p>
+        <h1 style={{ margin: '0 0 0.25rem' }}>Thoughts & Journal</h1>
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          Personal chronological thought stream • Messages to yourself
+        </p>
       </div>
 
-      <ThoughtInput onThoughtCreated={() => loadThoughts()} />
-
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2 className="card-title">Timeline</h2>
-            <p style={{ fontSize: '0.85rem' }}>{thoughts.length} thought{thoughts.length === 1 ? '' : 's'} recorded</p>
+      {/* Main Chat Box Container with Border */}
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100vh - 220px)',
+          minHeight: '520px',
+          maxHeight: '760px',
+          padding: 0,
+          backgroundColor: '#111111',
+          border: '1.5px solid #2e2e2e',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+        }}
+      >
+        {/* Chat Top Header with Border */}
+        <div
+          style={{
+            padding: '0.85rem 1.25rem',
+            borderBottom: '1px solid #262626',
+            backgroundColor: '#161616',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(134, 59, 255, 0.15)',
+                border: '1px solid #863bff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1rem',
+              }}
+            >
+              💭
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#ffffff' }}>Thoughts Stream</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {thoughts.length} {thoughts.length === 1 ? 'thought' : 'thoughts'} logged
+              </div>
+            </div>
           </div>
-          <div style={{ maxWidth: 260, width: '100%' }}>
+
+          {/* Search Filter Box with Border */}
+          <div style={{ position: 'relative', width: '100%', maxWidth: '220px' }}>
+            <Search
+              size={14}
+              style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}
+            />
             <input
               type="text"
               className="input"
-              placeholder="Search thoughts..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                paddingLeft: '28px',
+                paddingTop: '0.35rem',
+                paddingBottom: '0.35rem',
+                fontSize: '0.8rem',
+                backgroundColor: '#0d0d0d',
+                border: '1px solid #333333',
+                borderRadius: '8px',
+              }}
             />
           </div>
         </div>
 
-        {thoughts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-            {searchQuery ? 'No thoughts matching search query.' : 'No thoughts yet. Capture what is on your mind above!'}
-          </div>
-        ) : (
-          <div className="thoughts-timeline-grid">
-            {thoughts.map((th) => {
+        {/* Scrollable Chat Area: Old things UP, new things DOWN */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            backgroundColor: '#0f0f0f',
+          }}
+        >
+          {chronologicalThoughts.length === 0 ? (
+            <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              {searchQuery ? 'No thoughts matching search query.' : 'No thoughts yet. Send a message to yourself below!'}
+            </div>
+          ) : (
+            chronologicalThoughts.map((th) => {
               const dateObj = new Date(th.created_at);
               const formattedDate = dateObj.toLocaleDateString(undefined, {
                 month: 'short',
                 day: 'numeric',
-                year: 'numeric',
               });
               const formattedTime = dateObj.toLocaleTimeString([], {
                 hour: '2-digit',
@@ -78,32 +189,127 @@ export default function Thoughts() {
                 <div
                   key={th.id}
                   style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-color)',
+                    alignSelf: 'flex-start',
+                    maxWidth: '85%',
+                    backgroundColor: '#181818',
+                    border: '1.5px solid #2f2f2f',
+                    borderLeft: '3px solid #863bff',
+                    borderRadius: '14px',
+                    padding: '0.8rem 1rem',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                    position: 'relative',
+                    transition: 'border-color 0.15s ease',
                   }}
                 >
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '0.5rem' }}>
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.55, color: '#f0f0f0' }}>
                     {th.content}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                      marginTop: '0.5rem',
+                      fontSize: '0.72rem',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
                     <span>
-                      {formattedDate} at {formattedTime}
+                      {formattedDate} • {formattedTime}
                     </span>
+
                     <button
-                      className="btn btn-danger btn-sm"
                       onClick={() => handleDelete(th.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#777',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        fontSize: '0.72rem',
+                        transition: 'color 0.15s ease',
+                      }}
                       title="Delete thought"
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = '#777')}
                     >
-                      Delete
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Bottom Chat Input Box with Border */}
+        <form
+          onSubmit={handleSendThought}
+          style={{
+            padding: '0.85rem 1rem',
+            borderTop: '1px solid #262626',
+            backgroundColor: '#161616',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+          }}
+        >
+          <div style={{ flex: 1, position: 'relative' }}>
+            <textarea
+              rows={1}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="What's on your mind? (Press Enter to send)"
+              disabled={isSending}
+              style={{
+                width: '100%',
+                padding: '0.65rem 0.85rem',
+                backgroundColor: '#0c0c0c',
+                border: '1.5px solid #383838',
+                borderRadius: '12px',
+                color: '#ffffff',
+                fontSize: '0.9rem',
+                outline: 'none',
+                resize: 'none',
+                fontFamily: 'inherit',
+                lineHeight: 1.4,
+                display: 'block',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => (e.target.style.borderColor = '#863bff')}
+              onBlur={(e) => (e.target.style.borderColor = '#383838')}
+            />
           </div>
-        )}
+
+          <button
+            type="submit"
+            disabled={!inputText.trim() || isSending}
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              backgroundColor: inputText.trim() ? '#863bff' : '#262626',
+              border: `1px solid ${inputText.trim() ? '#9b51e0' : '#333333'}`,
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: inputText.trim() ? 'pointer' : 'not-allowed',
+              opacity: inputText.trim() ? 1 : 0.5,
+              transition: 'all 0.15s ease',
+            }}
+            aria-label="Send thought"
+          >
+            <Send size={18} />
+          </button>
+        </form>
       </div>
     </div>
   );
