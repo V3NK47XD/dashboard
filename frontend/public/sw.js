@@ -1,0 +1,86 @@
+/**
+ * Personal Dashboard PWA Service Worker
+ * Offline-first asset caching with passthrough for npoint.io API synchronization.
+ * Supports root and subdirectory deployments (e.g. GitHub Pages).
+ */
+
+const CACHE_NAME = 'personal-os-v1';
+const BASE = self.location.pathname.substring(0, self.location.pathname.lastIndexOf('/') + 1);
+
+const ASSETS_TO_CACHE = [
+  BASE,
+  `${BASE}index.html`,
+  `${BASE}manifest.webmanifest`,
+  `${BASE}favicon.svg`,
+  `${BASE}icon-192.svg`,
+  `${BASE}icon-512.svg`,
+];
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
+        console.warn('[SW] Pre-caching error (non-fatal):', err);
+      });
+    })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Never cache npoint.io or external API calls
+  if (url.hostname.includes('npoint.io') || event.request.method !== 'GET') {
+    return;
+  }
+
+  // Handle SPA navigation requests
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return (
+          (await cache.match(`${BASE}index.html`)) ||
+          (await cache.match(BASE)) ||
+          (await cache.match('/index.html')) ||
+          (await cache.match('/'))
+        );
+      })
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for local static assets
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
+    })
+  );
+});
