@@ -385,17 +385,16 @@ export async function applyRemoteMutation(mutateFn) {
 }
 
 /**
- * Specific Mutator: Add or edit task with encrypted value
+ * Poll remote first, check if possible, mutate, and push back.
+ */
+
+/**
+ * Mutator: Add or edit task (poll latest -> check -> encrypt -> push)
  */
 export async function syncSaveTask(task) {
   const password = getCachedPassword();
   const encryptedVal = await encryptRecordValue(task.title, password);
 
-  // 1. Update local Dexie instantly
-  await db.todos.put(task);
-  notifyDataChanged();
-
-  // 2. Fetch latest and update remote
   await applyRemoteMutation(async (doc) => {
     doc.tasks[task.id] = {
       id: task.id,
@@ -406,54 +405,59 @@ export async function syncSaveTask(task) {
     };
     return true;
   });
+
+  await db.todos.put(task);
+  notifyDataChanged();
 }
 
 /**
- * Specific Mutator: Toggle task completed status
+ * Mutator: Toggle task (poll latest -> check exists -> toggle -> push)
  */
 export async function syncToggleTask(taskId) {
-  const existing = await db.todos.get(taskId);
-  if (!existing) return;
+  let nextCompleted = false;
 
-  const updated = { ...existing, completed: !existing.completed, updated_at: new Date().toISOString() };
-  await db.todos.put(updated);
-  notifyDataChanged();
-
-  await applyRemoteMutation(async (doc) => {
-    if (!doc.tasks?.[taskId]) {
-      return false; // Task does not exist on remote
+  const applied = await applyRemoteMutation(async (doc) => {
+    if (!doc.tasks || !doc.tasks[taskId]) {
+      return false; // Task was deleted or not on remote
     }
-    doc.tasks[taskId].completed = updated.completed;
-    doc.tasks[taskId].updated_at = updated.updated_at;
+    doc.tasks[taskId].completed = !doc.tasks[taskId].completed;
+    doc.tasks[taskId].updated_at = new Date().toISOString();
+    nextCompleted = doc.tasks[taskId].completed;
     return true;
   });
+
+  if (applied) {
+    const existing = await db.todos.get(taskId);
+    if (existing) {
+      await db.todos.put({ ...existing, completed: nextCompleted, updated_at: new Date().toISOString() });
+      notifyDataChanged();
+    }
+  }
+  return applied;
 }
 
 /**
- * Specific Mutator: Remove task
+ * Mutator: Remove task (poll latest -> check exists -> delete -> push)
  */
 export async function syncRemoveTask(taskId) {
-  await db.todos.delete(taskId);
-  notifyDataChanged();
-
   await applyRemoteMutation(async (doc) => {
     if (doc.tasks && doc.tasks[taskId]) {
       delete doc.tasks[taskId];
       return true;
     }
-    return false;
+    return true; // Already deleted
   });
+
+  await db.todos.delete(taskId);
+  notifyDataChanged();
 }
 
 /**
- * Specific Mutator: Add or edit thought with encrypted value
+ * Mutator: Add or edit thought (poll latest -> check -> encrypt -> push)
  */
 export async function syncSaveThought(thought) {
   const password = getCachedPassword();
   const encryptedVal = await encryptRecordValue(thought.content, password);
-
-  await db.thoughts.put(thought);
-  notifyDataChanged();
 
   await applyRemoteMutation(async (doc) => {
     doc.thoughts[thought.id] = {
@@ -464,44 +468,64 @@ export async function syncSaveThought(thought) {
     };
     return true;
   });
+
+  await db.thoughts.put(thought);
+  notifyDataChanged();
 }
 
 /**
- * Specific Mutator: Remove thought
+ * Mutator: Remove thought (poll latest -> check exists -> delete -> push)
  */
 export async function syncRemoveThought(thoughtId) {
-  await db.thoughts.delete(thoughtId);
-  notifyDataChanged();
-
   await applyRemoteMutation(async (doc) => {
     if (doc.thoughts && doc.thoughts[thoughtId]) {
       delete doc.thoughts[thoughtId];
       return true;
     }
-    return false;
-  });
-}
-
-/**
- * Specific Mutator: Update habit count for a category on current day
- */
-export async function syncUpdateHabitCount(catId, dateIso, newCount) {
-  await applyRemoteMutation(async (doc) => {
-    if (!doc.habits[catId]) doc.habits[catId] = {};
-    doc.habits[catId][dateIso] = newCount;
     return true;
   });
+
+  await db.thoughts.delete(thoughtId);
+  notifyDataChanged();
 }
 
 /**
- * Specific Mutator: Update habit threshold
+ * Mutator: Adjust habit for today (poll latest -> check current remote -> adjust -> push)
+ */
+export async function syncAdjustHabitToday(catId, delta) {
+  const d = new Date();
+  const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  let nextVal = 0;
+
+  await applyRemoteMutation(async (doc) => {
+    if (!doc.habits[catId]) doc.habits[catId] = {};
+    const currentRemote = doc.habits[catId][todayIso] || 0;
+    nextVal = Math.max(0, currentRemote + delta);
+    doc.habits[catId][todayIso] = nextVal;
+    return true;
+  });
+
+  // Update local habits store
+  const habits = loadAllHabitsData();
+  if (!habits[catId]) habits[catId] = {};
+  habits[catId][todayIso] = nextVal;
+  saveAllHabitsData(habits);
+  notifyDataChanged();
+  return nextVal;
+}
+
+/**
+ * Mutator: Update habit threshold (poll latest -> update -> push)
  */
 export async function syncUpdateThreshold(catId, newThresh) {
   await applyRemoteMutation(async (doc) => {
     if (!doc.thresholds) doc.thresholds = {};
-    doc.thresholds[catId] = newThresh;
+    doc.thresholds[catId] = Number(newThresh);
     return true;
   });
+
+  setHabitThreshold(catId, newThresh);
+  notifyDataChanged();
 }
 let debounceTimer = null;
 export function triggerDebouncedSync(delayMs = 800) {
@@ -688,12 +712,6 @@ export function initNpointSync() {
     pullFromNpoint(true);
   });
 
-  // Background interval polling every 10s
-  setInterval(() => {
-    if (navigator.onLine && document.visibilityState === 'visible') {
-      pullFromNpoint(true);
-    }
-  }, 10000);
 
   const url = getNpointUrl();
   if (!url) {

@@ -1,13 +1,12 @@
 import {
   LayoutGrid,
-  Plus,
+  RefreshCw,
   CheckSquare,
   Sparkles,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import SyncStatus from './components/SyncStatus';
-import QuickAddModal from './components/QuickAddModal';
 import SetupModal from './components/SetupModal';
 import UnlockModal from './components/UnlockModal';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
@@ -16,7 +15,7 @@ import Todos from './pages/Todos';
 import Thoughts from './pages/Thoughts';
 import AI from './pages/AI';
 import Settings from './pages/Settings';
-import { initNpointSync, subscribeSyncState, getNpointUrl } from './sync/npointSync';
+import { initNpointSync, subscribeSyncState, pullFromNpoint } from './sync/npointSync';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -24,6 +23,7 @@ export default function App() {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [isUnlockOpen, setIsUnlockOpen] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
   const [syncState, setSyncState] = useState('offline');
   const [todayIso] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -116,7 +116,7 @@ export default function App() {
 
       {/* Floating Bottom Navigation Bar */}
       <nav className="floating-bottom-bar" aria-label="Main Navigation">
-        {/* Habit Dashboard (Matrix / Cards) */}
+        {/* Habits */}
         <button
           className={`nav-item ${currentPage === 'dashboard' ? 'active' : ''}`}
           onClick={() => navigate('dashboard')}
@@ -126,31 +126,45 @@ export default function App() {
           <span className="nav-label">Habits</span>
         </button>
 
-
-        {/* Center Quick Add Action Button (+) */}
-        <button
-          className="nav-action-btn"
-          onClick={() => setIsQuickAddOpen(true)}
-          aria-label="Quick Add Activity"
-        >
-          <Plus size={22} strokeWidth={2.6} />
-        </button>
-
-        {/* Tasks / Todos */}
+        {/* Tasks */}
         <button
           className={`nav-item ${currentPage === 'todos' ? 'active' : ''}`}
           onClick={() => navigate('todos')}
-          aria-label="Tasks and Todos"
+          aria-label="Tasks"
         >
           <CheckSquare className="nav-icon" size={20} strokeWidth={2.2} />
           <span className="nav-label">Tasks</span>
         </button>
 
-        {/* Thoughts / Notes */}
+        {/* Center Cloud Poll / Sync Button */}
+        <button
+          className="nav-action-btn"
+          onClick={async () => {
+            setIsPolling(true);
+            try {
+              await pullFromNpoint(false);
+            } finally {
+              setTimeout(() => setIsPolling(false), 600);
+            }
+          }}
+          disabled={isPolling}
+          aria-label="Poll Cloud Changes"
+          title="Poll cloud data from npoint.io"
+        >
+          <RefreshCw
+            size={20}
+            strokeWidth={2.5}
+            style={{
+              animation: isPolling || syncState === 'syncing' ? 'spin 1s linear infinite' : 'none',
+            }}
+          />
+        </button>
+
+        {/* Thoughts */}
         <button
           className={`nav-item ${currentPage === 'thoughts' ? 'active' : ''}`}
           onClick={() => navigate('thoughts')}
-          aria-label="Instant Thoughts"
+          aria-label="Thoughts"
         >
           <Sparkles className="nav-icon" size={20} strokeWidth={2.2} />
           <span className="nav-label">Thoughts</span>
@@ -160,22 +174,12 @@ export default function App() {
         <button
           className={`nav-item ${currentPage === 'settings' ? 'active' : ''}`}
           onClick={() => navigate('settings')}
-          aria-label="Settings and Diagnostics"
+          aria-label="Settings"
         >
           <SettingsIcon className="nav-icon" size={20} strokeWidth={2.2} />
           <span className="nav-label">Settings</span>
         </button>
       </nav>
-
-      {/* Quick Add Modal */}
-      <QuickAddModal
-        isOpen={isQuickAddOpen}
-        onClose={() => setIsQuickAddOpen(false)}
-        date={todayIso}
-        onMetricUpdated={() => {
-          // Handled via reactive local DB queries
-        }}
-      />
 
       {/* Setup Modal (When npoint URL not configured) */}
       <SetupModal

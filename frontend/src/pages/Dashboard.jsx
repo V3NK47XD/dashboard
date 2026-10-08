@@ -10,7 +10,7 @@ import {
   getTodayIso,
 } from '../db/habits';
 import {
-  syncUpdateHabitCount,
+  syncAdjustHabitToday,
   syncUpdateThreshold,
   subscribeDataChanges,
 } from '../sync/npointSync';
@@ -55,15 +55,15 @@ export default function Dashboard({ onNavigate }) {
     return `Today, ${dayNum}${suffix} ${monthStr}`;
   }, [todayIso]);
 
-  // Adjust today's count (stepper + / -)
+  // Adjust today's count (stepper + / -): polls cloud first, checks, updates, pushes
   const handleAdjustToday = async (catId, delta) => {
-    const nextVal = adjustTodayCategoryCount(catId, delta);
-    setHabitsData(loadAllHabitsData());
-
     try {
-      await syncUpdateHabitCount(catId, todayIso, nextVal);
+      await syncAdjustHabitToday(catId, delta);
+      loadAll();
     } catch (e) {
-      console.warn('Background sync note:', e);
+      console.warn('Sync note:', e);
+      adjustTodayCategoryCount(catId, delta);
+      loadAll();
     }
   };
 
