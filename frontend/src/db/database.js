@@ -30,7 +30,7 @@ export async function getDeviceId() {
     const newId = `dev-${generateUUID().slice(0, 12)}`;
     await db.sync_meta.put({ key: 'device_id', value: newId });
     return newId;
-  } catch (err) {
+  } catch {
     return 'browser-client';
   }
 }
@@ -39,7 +39,7 @@ export async function getMeta(key, defaultValue = null) {
   try {
     const entry = await db.sync_meta.get(key);
     return entry ? entry.value : defaultValue;
-  } catch (err) {
+  } catch {
     return defaultValue;
   }
 }

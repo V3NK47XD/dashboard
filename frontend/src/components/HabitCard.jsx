@@ -13,14 +13,13 @@ export default function HabitCard({
   historyMap = {},
   onAdjustToday,
 }) {
-  const { id, title, icon, colorTheme, accentColor, step, formatValue, unit } = category;
+  const { id, title, icon, colorTheme, accentColor, step, formatValue } = category;
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedMonthOffset, setSelectedMonthOffset] = useState(0); // 0 = current month, 1 = last month...
 
   const todayIso = getTodayIso();
   const isValidToday = todayVal >= threshold;
 
-  const now = new Date();
   const pastMonths = useMemo(() => getPastMonthsList(12), []);
 
   // Selected month for display

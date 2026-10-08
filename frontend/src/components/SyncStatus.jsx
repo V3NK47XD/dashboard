@@ -5,7 +5,6 @@ import {
   getNpointUrl,
   getLastSyncTime,
   getEncryptionMode,
-  getCachedPassword,
 } from '../sync/npointSync';
 
 export default function SyncStatus({ onOpenSettings, onOpenSetup, onOpenUnlock }) {

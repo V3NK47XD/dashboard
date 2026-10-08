@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getTodos, createTodo } from '../db/todos';
 import { getThoughts, createThought } from '../db/thoughts';
-import { loadAllHabitsData, adjustTodayCategoryCount, getTodayIso } from '../db/habits';
+import { loadAllHabitsData, adjustTodayCategoryCount } from '../db/habits';
 import { triggerDebouncedSync } from '../sync/npointSync';
 
 export default function AI() {

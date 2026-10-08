@@ -19,13 +19,10 @@ import { initNpointSync, subscribeSyncState, pullFromNpoint } from './sync/npoin
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [pageParams, setPageParams] = useState({});
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [isUnlockOpen, setIsUnlockOpen] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [syncState, setSyncState] = useState('offline');
-  const [todayIso] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Sync engine bootstrap on mount
   useEffect(() => {
@@ -72,9 +69,8 @@ export default function App() {
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
-  const navigate = (page, params = {}) => {
+  const navigate = (page) => {
     setCurrentPage(page);
-    setPageParams(params);
     const prefix = window.location.pathname.toLowerCase().startsWith('/dashboard') ? '/dashboard' : '';
     const targetUrl = page === 'dashboard' ? `${prefix}/` : `${prefix}/${page}`;
     if (window.location.pathname !== targetUrl) {

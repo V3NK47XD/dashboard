@@ -243,6 +243,7 @@ async function fetchRemoteDoc(url) {
   if (!doc || doc.version === 1 || (doc.encrypted && doc.ciphertext) || typeof doc !== 'object') {
     doc = createDefaultDocument();
   }
+  if (!doc.salt) doc.salt = generateSalt();
   if (!doc.habits) doc.habits = {};
   if (!doc.thresholds) doc.thresholds = {};
   if (!doc.tasks) doc.tasks = {};
@@ -275,14 +276,25 @@ async function pushRemoteDoc(url, doc) {
 async function overwriteDeviceFromDoc(doc, password) {
   if (!doc) return;
 
-  // 1. Habits history & thresholds
+  // 1. Habits history & thresholds (support encrypted string token or plain object)
   if (doc.habits) {
-    saveAllHabitsData(doc.habits);
+    let habitsData = doc.habits;
+    if (typeof habitsData === 'string' && habitsData.startsWith('enc:v1:')) {
+      habitsData = await decryptRecordValue(habitsData, password);
+    }
+    if (habitsData && typeof habitsData === 'object') {
+      saveAllHabitsData(habitsData);
+    }
   }
   if (doc.thresholds) {
-    localStorage.setItem('dashboard_habit_thresholds_v2', JSON.stringify(doc.thresholds));
+    let thresholdsData = doc.thresholds;
+    if (typeof thresholdsData === 'string' && thresholdsData.startsWith('enc:v1:')) {
+      thresholdsData = await decryptRecordValue(thresholdsData, password);
+    }
+    if (thresholdsData && typeof thresholdsData === 'object') {
+      localStorage.setItem('dashboard_habit_thresholds_v2', JSON.stringify(thresholdsData));
+    }
   }
-
   // 2. Tasks: decrypt values and write to Dexie
   const decryptedTasks = [];
   if (doc.tasks && typeof doc.tasks === 'object') {
@@ -352,10 +364,13 @@ export async function connectAndFetchFirst(rawUrl, password = '', encryptionMode
     } else {
       // If remote bin is brand new / empty, initialize with fixed structure
       const newDoc = createDefaultDocument();
+      if (encryptionMode === 'password' && password) {
+        newDoc.habits = await encryptRecordValue(newDoc.habits, password, newDoc.salt);
+        newDoc.thresholds = await encryptRecordValue(newDoc.thresholds, password, newDoc.salt);
+      }
       await pushRemoteDoc(normalized, newDoc);
       await overwriteDeviceFromDoc(newDoc, password);
     }
-
     setSyncState('synced');
     return { success: true };
   } catch (err) {
@@ -369,11 +384,22 @@ export async function connectAndFetchFirst(rawUrl, password = '', encryptionMode
 }
 
 /**
+ * In-memory Promise chain mutex to serialize all remote mutations and prevent race conditions
+ */
+let mutationQueueChain = Promise.resolve();
+
+function runSerializedMutation(fn) {
+  const next = async () => {
+    return await fn();
+  };
+  const resultPromise = mutationQueueChain.then(next, next);
+  mutationQueueChain = resultPromise.catch(() => {});
+  return resultPromise;
+}
+
+/**
  * Fetch-latest-then-update pattern:
- * 1. GET latest JSON from npoint
- * 2. Check if operation is possible & apply mutation
- * 3. POST back updated JSON
- * 4. Update local state
+ * Serialized through mutex to guarantee zero concurrent overwrite races.
  */
 export async function applyRemoteMutation(mutateFn) {
   const url = getNpointUrl();
@@ -383,33 +409,36 @@ export async function applyRemoteMutation(mutateFn) {
     return null;
   }
 
-  try {
-    setSyncState('syncing');
-    const doc = (await fetchRemoteDoc(url)) || createDefaultDocument();
-    const password = getCachedPassword();
+  return runSerializedMutation(async () => {
+    try {
+      isSyncInProgress = true;
+      setSyncState('syncing');
+      const doc = (await fetchRemoteDoc(url)) || createDefaultDocument();
+      const password = getCachedPassword();
 
-    // Check if doc structure exists, fill defaults if empty
-    if (!doc.habits) doc.habits = {};
-    if (!doc.thresholds) doc.thresholds = {};
-    if (!doc.tasks) doc.tasks = {};
-    if (!doc.thoughts) doc.thoughts = {};
+      if (!doc.salt) doc.salt = generateSalt();
+      if (!doc.tasks) doc.tasks = {};
+      if (!doc.thoughts) doc.thoughts = {};
 
-    // Execute mutation on the latest doc
-    const possible = await mutateFn(doc, password);
-    if (possible === false) {
-      console.warn('[Sync] Mutation not possible on latest remote doc');
+      // Execute mutation on the latest doc
+      const possible = await mutateFn(doc, password);
+      if (possible === false) {
+        console.warn('[Sync] Mutation not possible on latest remote doc');
+        setSyncState('synced');
+        return false;
+      }
+
+      await pushRemoteDoc(url, doc);
       setSyncState('synced');
-      return false;
+      return true;
+    } catch (err) {
+      console.error('[Sync] Mutation error:', err);
+      setSyncState('error', err.message);
+      throw err;
+    } finally {
+      isSyncInProgress = false;
     }
-
-    await pushRemoteDoc(url, doc);
-    setSyncState('synced');
-    return true;
-  } catch (err) {
-    console.error('[Sync] Mutation error:', err);
-    setSyncState('error', err.message);
-    throw err;
-  }
+  });
 }
 
 /**
@@ -432,67 +461,91 @@ export async function drainOfflineQueue() {
     return await pullFromNpoint(true);
   }
 
-  try {
-    setSyncState('syncing');
-    const doc = (await fetchRemoteDoc(url)) || createDefaultDocument();
-    const password = getCachedPassword();
+  return runSerializedMutation(async () => {
+    try {
+      isSyncInProgress = true;
+      setSyncState('syncing');
+      const doc = (await fetchRemoteDoc(url)) || createDefaultDocument();
+      const password = getCachedPassword();
 
-    if (!doc.habits) doc.habits = {};
-    if (!doc.thresholds) doc.thresholds = {};
-    if (!doc.tasks) doc.tasks = {};
-    if (!doc.thoughts) doc.thoughts = {};
+      if (!doc.salt) doc.salt = generateSalt();
+      const binSalt = doc.salt;
 
-    for (const m of queue) {
-      if (m.type === 'habit_delta') {
-        if (!doc.habits[m.catId]) doc.habits[m.catId] = {};
-        const curr = doc.habits[m.catId][m.dateIso] || 0;
-        doc.habits[m.catId][m.dateIso] = Math.max(0, curr + m.delta);
-      } else if (m.type === 'task_save') {
-        const val = await encryptRecordValue(m.task.title, password);
-        doc.tasks[m.task.id] = {
-          id: m.task.id,
-          completed: Boolean(m.task.completed),
-          created_at: m.task.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          val,
-        };
-      } else if (m.type === 'task_toggle') {
-        if (doc.tasks?.[m.taskId]) {
-          doc.tasks[m.taskId].completed = !doc.tasks[m.taskId].completed;
-          doc.tasks[m.taskId].updated_at = new Date().toISOString();
-        }
-      } else if (m.type === 'task_remove') {
-        if (doc.tasks?.[m.taskId]) {
-          delete doc.tasks[m.taskId];
-        }
-      } else if (m.type === 'thought_save') {
-        const val = await encryptRecordValue(m.thought.content, password);
-        doc.thoughts[m.thought.id] = {
-          id: m.thought.id,
-          created_at: m.thought.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          val,
-        };
-      } else if (m.type === 'thought_remove') {
-        if (doc.thoughts?.[m.thoughtId]) {
-          delete doc.thoughts[m.thoughtId];
-        }
-      } else if (m.type === 'threshold_update') {
-        doc.thresholds[m.catId] = Number(m.newThresh);
+      if (!doc.tasks) doc.tasks = {};
+      if (!doc.thoughts) doc.thoughts = {};
+
+      // Unpack habits and thresholds if encrypted
+      let currentHabits = doc.habits;
+      if (typeof currentHabits === 'string' && currentHabits.startsWith('enc:v1:')) {
+        currentHabits = (await decryptRecordValue(currentHabits, password)) || {};
       }
-    }
+      if (!currentHabits || typeof currentHabits !== 'object') currentHabits = {};
 
-    await pushRemoteDoc(url, doc);
-    saveOfflineQueue([]);
-    await overwriteDeviceFromDoc(doc, password);
-    setSyncState('synced');
-    return true;
-  } catch (err) {
-    console.warn('[Sync] Drain queue retry later:', err);
-    setSyncState('offline', `Saved locally (${queue.length} pending sync)`);
-    return false;
-  }
+      let currentThresholds = doc.thresholds;
+      if (typeof currentThresholds === 'string' && currentThresholds.startsWith('enc:v1:')) {
+        currentThresholds = (await decryptRecordValue(currentThresholds, password)) || {};
+      }
+      if (!currentThresholds || typeof currentThresholds !== 'object') currentThresholds = {};
+
+      for (const m of queue) {
+        if (m.type === 'habit_delta') {
+          if (!currentHabits[m.catId]) currentHabits[m.catId] = {};
+          const curr = currentHabits[m.catId][m.dateIso] || 0;
+          currentHabits[m.catId][m.dateIso] = Math.max(0, curr + m.delta);
+        } else if (m.type === 'task_save') {
+          const val = await encryptRecordValue(m.task.title, password, binSalt);
+          doc.tasks[m.task.id] = {
+            id: m.task.id,
+            completed: Boolean(m.task.completed),
+            created_at: m.task.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            val,
+          };
+        } else if (m.type === 'task_toggle') {
+          if (doc.tasks?.[m.taskId]) {
+            doc.tasks[m.taskId].completed = !doc.tasks[m.taskId].completed;
+            doc.tasks[m.taskId].updated_at = new Date().toISOString();
+          }
+        } else if (m.type === 'task_remove') {
+          if (doc.tasks?.[m.taskId]) {
+            delete doc.tasks[m.taskId];
+          }
+        } else if (m.type === 'thought_save') {
+          const val = await encryptRecordValue(m.thought.content, password, binSalt);
+          doc.thoughts[m.thought.id] = {
+            id: m.thought.id,
+            created_at: m.thought.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            val,
+          };
+        } else if (m.type === 'thought_remove') {
+          if (doc.thoughts?.[m.thoughtId]) {
+            delete doc.thoughts[m.thoughtId];
+          }
+        } else if (m.type === 'threshold_update') {
+          currentThresholds[m.catId] = Number(m.newThresh);
+        }
+      }
+
+      doc.habits = password ? await encryptRecordValue(currentHabits, password, binSalt) : currentHabits;
+      doc.thresholds = password ? await encryptRecordValue(currentThresholds, password, binSalt) : currentThresholds;
+
+      await pushRemoteDoc(url, doc);
+      saveOfflineQueue([]);
+      await overwriteDeviceFromDoc(doc, password);
+      setSyncState('synced');
+      return true;
+    } catch (err) {
+      console.warn('[Sync] Drain queue retry later:', err);
+      setSyncState('offline', `Saved locally (${queue.length} pending sync)`);
+      return false;
+    } finally {
+      isSyncInProgress = false;
+    }
+  });
 }
+
+
 
 /**
  * Mutator: Add or edit task (writes locally immediately, syncs or queues)
@@ -511,9 +564,9 @@ export async function syncSaveTask(task) {
   }
 
   try {
-    const password = getCachedPassword();
-    const encryptedVal = await encryptRecordValue(task.title, password);
-    await applyRemoteMutation(async (doc) => {
+    await applyRemoteMutation(async (doc, password) => {
+      doc.salt = doc.salt || generateSalt();
+      const encryptedVal = await encryptRecordValue(task.title, password, doc.salt);
       doc.tasks[task.id] = {
         id: task.id,
         completed: Boolean(task.completed),
@@ -605,9 +658,9 @@ export async function syncSaveThought(thought) {
   }
 
   try {
-    const password = getCachedPassword();
-    const encryptedVal = await encryptRecordValue(thought.content, password);
-    await applyRemoteMutation(async (doc) => {
+    await applyRemoteMutation(async (doc, password) => {
+      doc.salt = doc.salt || generateSalt();
+      const encryptedVal = await encryptRecordValue(thought.content, password, doc.salt);
       doc.thoughts[thought.id] = {
         id: thought.id,
         created_at: thought.created_at || new Date().toISOString(),
@@ -676,10 +729,19 @@ export async function syncAdjustHabitToday(catId, delta) {
   }
 
   try {
-    await applyRemoteMutation(async (doc) => {
-      if (!doc.habits[catId]) doc.habits[catId] = {};
-      const currentRemote = doc.habits[catId][todayIso] || 0;
-      doc.habits[catId][todayIso] = Math.max(0, currentRemote + delta);
+    await applyRemoteMutation(async (doc, password) => {
+      doc.salt = doc.salt || generateSalt();
+      let habitsMap = doc.habits;
+      if (typeof habitsMap === 'string' && habitsMap.startsWith('enc:v1:')) {
+        habitsMap = (await decryptRecordValue(habitsMap, password)) || {};
+      }
+      if (!habitsMap || typeof habitsMap !== 'object') habitsMap = {};
+
+      if (!habitsMap[catId]) habitsMap[catId] = {};
+      const currentRemote = habitsMap[catId][todayIso] || 0;
+      habitsMap[catId][todayIso] = Math.max(0, currentRemote + delta);
+
+      doc.habits = password ? await encryptRecordValue(habitsMap, password, doc.salt) : habitsMap;
       return true;
     });
   } catch (err) {
@@ -706,9 +768,16 @@ export async function syncUpdateThreshold(catId, newThresh) {
   }
 
   try {
-    await applyRemoteMutation(async (doc) => {
-      if (!doc.thresholds) doc.thresholds = {};
-      doc.thresholds[catId] = Number(newThresh);
+    await applyRemoteMutation(async (doc, password) => {
+      doc.salt = doc.salt || generateSalt();
+      let threshMap = doc.thresholds;
+      if (typeof threshMap === 'string' && threshMap.startsWith('enc:v1:')) {
+        threshMap = (await decryptRecordValue(threshMap, password)) || {};
+      }
+      if (!threshMap || typeof threshMap !== 'object') threshMap = {};
+
+      threshMap[catId] = Number(newThresh);
+      doc.thresholds = password ? await encryptRecordValue(threshMap, password, doc.salt) : threshMap;
       return true;
     });
   } catch (err) {
@@ -805,12 +874,22 @@ export async function changeEncryptionSettings(newMode, newPassword = '', rememb
   setEncryptionMode(newMode);
   setCachedPassword(newPassword, rememberOnDevice);
 
-  // Re-encrypt all tasks and thoughts on remote
+  // Re-encrypt all tasks, thoughts, habits, and thresholds on remote
   await applyRemoteMutation(async (doc) => {
+    doc.salt = generateSalt();
+    const binSalt = doc.salt;
+    const isEnc = newMode === 'password' && Boolean(newPassword);
+
+    // Habits & Thresholds
+    const localHabits = loadAllHabitsData();
+    const localThresholds = getHabitThresholds();
+    doc.habits = isEnc ? await encryptRecordValue(localHabits, newPassword, binSalt) : localHabits;
+    doc.thresholds = isEnc ? await encryptRecordValue(localThresholds, newPassword, binSalt) : localThresholds;
+
     // Read local decrypted tasks and re-encrypt
     const tasks = await db.todos.toArray();
     for (const t of tasks) {
-      const val = newMode === 'password' && newPassword ? await encryptRecordValue(t.title, newPassword) : t.title;
+      const val = isEnc ? await encryptRecordValue(t.title, newPassword, binSalt) : t.title;
       doc.tasks[t.id] = {
         id: t.id,
         completed: Boolean(t.completed),
@@ -822,7 +901,7 @@ export async function changeEncryptionSettings(newMode, newPassword = '', rememb
 
     const thoughts = await db.thoughts.toArray();
     for (const th of thoughts) {
-      const val = newMode === 'password' && newPassword ? await encryptRecordValue(th.content, newPassword) : th.content;
+      const val = isEnc ? await encryptRecordValue(th.content, newPassword, binSalt) : th.content;
       doc.thoughts[th.id] = {
         id: th.id,
         created_at: th.created_at,

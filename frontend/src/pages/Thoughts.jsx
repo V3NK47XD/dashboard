@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getThoughts, searchThoughtsLocally, deleteThought, createThought } from '../db/thoughts';
 import { subscribeDataChanges } from '../sync/npointSync';
 import { Send, Trash2, Search } from 'lucide-react';
@@ -10,7 +10,7 @@ export default function Thoughts() {
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const loadThoughts = async () => {
+  const loadThoughts = useCallback(async () => {
     if (searchQuery.trim()) {
       const results = await searchThoughtsLocally(searchQuery);
       setThoughts(results);
@@ -18,7 +18,7 @@ export default function Thoughts() {
       const all = await getThoughts();
       setThoughts(all);
     }
-  };
+  }, [searchQuery]);
 
   useEffect(() => {
     loadThoughts();
@@ -26,7 +26,7 @@ export default function Thoughts() {
       loadThoughts();
     });
     return () => unsub();
-  }, [searchQuery]);
+  }, [loadThoughts]);
 
   // Chronological order: oldest messages up, newest messages down (chat app format)
   const chronologicalThoughts = [...thoughts].sort(
