@@ -24,6 +24,10 @@
   --habit-purple-dark: #1e0e2d;
   --habit-blue: #38bdf8;
   --habit-blue-dark: #0b1e2c;
+  --habit-indigo: #818cf8;
+  --habit-indigo-dark: #12142e;
+  --habit-amber: #f59e0b;
+  --habit-amber-dark: #291d03;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -310,6 +314,8 @@ body {
 .habit-teal .habit-counter-control.is-valid { border-color: rgba(45, 212, 191, 0.5); background-color: #0c1b18; }
 .habit-purple .habit-counter-control.is-valid { border-color: rgba(168, 85, 247, 0.5); background-color: #180d21; }
 .habit-blue .habit-counter-control.is-valid { border-color: rgba(56, 189, 248, 0.5); background-color: #0d1721; }
+.habit-indigo .habit-counter-control.is-valid { border-color: rgba(129, 140, 248, 0.5); background-color: #12142e; }
+.habit-amber .habit-counter-control.is-valid { border-color: rgba(245, 158, 11, 0.5); background-color: #291d03; }
 
 .counter-info {
   display: flex;
@@ -341,6 +347,8 @@ body {
 .habit-teal .counter-target-badge.achieved { color: #2dd4bf; }
 .habit-purple .counter-target-badge.achieved { color: #c084fc; }
 .habit-blue .counter-target-badge.achieved { color: #38bdf8; }
+.habit-indigo .counter-target-badge.achieved { color: #818cf8; }
+.habit-amber .counter-target-badge.achieved { color: #f59e0b; }
 
 .counter-actions {
   display: flex;
@@ -386,6 +394,8 @@ body {
 .habit-teal .counter-btn.btn-plus { background-color: #2dd4bf; color: #000; border-color: #2dd4bf; }
 .habit-purple .counter-btn.btn-plus { background-color: #a855f7; color: #fff; border-color: #a855f7; }
 .habit-blue .counter-btn.btn-plus { background-color: #38bdf8; color: #000; border-color: #38bdf8; }
+.habit-indigo .counter-btn.btn-plus { background-color: #818cf8; color: #000; border-color: #818cf8; }
+.habit-amber .counter-btn.btn-plus { background-color: #f59e0b; color: #000; border-color: #f59e0b; }
 
 /* Card Pixel Heatmap Grid */
 .card-heatmap-wrapper {
@@ -461,6 +471,20 @@ body {
 .habit-blue .card-pixel.level-2 { background-color: #0284c7; }
 .habit-blue .card-pixel.level-3 { background-color: #38bdf8; box-shadow: 0 0 5px rgba(56, 189, 248, 0.4); }
 .habit-blue .card-pixel.level-4 { background-color: #bae6fd; box-shadow: 0 0 8px rgba(186, 230, 253, 0.7); }
+
+/* Indigo Habit (Sleep) */
+.habit-indigo .card-pixel.level-0 { background-color: #0d0f24; }
+.habit-indigo .card-pixel.level-1 { background-color: #1e1b4b; }
+.habit-indigo .card-pixel.level-2 { background-color: #3730a3; }
+.habit-indigo .card-pixel.level-3 { background-color: #6366f1; box-shadow: 0 0 5px rgba(99, 102, 241, 0.4); }
+.habit-indigo .card-pixel.level-4 { background-color: #a5b4fc; box-shadow: 0 0 8px rgba(165, 180, 252, 0.7); }
+
+/* Amber Habit (Idle Time) */
+.habit-amber .card-pixel.level-0 { background-color: #1c1407; }
+.habit-amber .card-pixel.level-1 { background-color: #78350f; }
+.habit-amber .card-pixel.level-2 { background-color: #b45309; }
+.habit-amber .card-pixel.level-3 { background-color: #f59e0b; box-shadow: 0 0 5px rgba(245, 158, 11, 0.4); }
+.habit-amber .card-pixel.level-4 { background-color: #fde68a; box-shadow: 0 0 8px rgba(253, 230, 138, 0.7); }
 /* Landscape / Matrix Table View (Image #1) */
 .matrix-container {
   width: 100%;
@@ -591,6 +615,20 @@ body {
 .matrix-pixel.pixel-blue.level-2 { background-color: #0284c7; }
 .matrix-pixel.pixel-blue.level-3 { background-color: var(--habit-blue); box-shadow: 0 0 6px rgba(56, 189, 248, 0.4); }
 .matrix-pixel.pixel-blue.level-4 { background-color: #bae6fd; box-shadow: 0 0 10px rgba(186, 230, 253, 0.7); }
+
+/* Indigo */
+.matrix-pixel.pixel-indigo.level-0 { background-color: #0d0f24; }
+.matrix-pixel.pixel-indigo.level-1 { background-color: #1e1b4b; }
+.matrix-pixel.pixel-indigo.level-2 { background-color: #3730a3; }
+.matrix-pixel.pixel-indigo.level-3 { background-color: var(--habit-indigo); box-shadow: 0 0 6px rgba(129, 140, 248, 0.4); }
+.matrix-pixel.pixel-indigo.level-4 { background-color: #a5b4fc; box-shadow: 0 0 10px rgba(165, 180, 252, 0.7); }
+
+/* Amber */
+.matrix-pixel.pixel-amber.level-0 { background-color: #1c1407; }
+.matrix-pixel.pixel-amber.level-1 { background-color: #78350f; }
+.matrix-pixel.pixel-amber.level-2 { background-color: #b45309; }
+.matrix-pixel.pixel-amber.level-3 { background-color: var(--habit-amber); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.matrix-pixel.pixel-amber.level-4 { background-color: #fde68a; box-shadow: 0 0 10px rgba(253, 230, 138, 0.7); }
 /* Floating Bottom Navigation Bar */
 .floating-bottom-bar {
   position: fixed;

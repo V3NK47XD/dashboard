@@ -105,6 +105,28 @@ export const HABIT_CATEGORIES = [
     defaultThreshold: 1,
     formatValue: (val) => (val >= 1 ? 'Clean ✓' : '0'),
   },
+  {
+    id: 'sleep',
+    title: 'Sleep Time',
+    icon: '🌙',
+    colorTheme: 'habit-indigo',
+    accentColor: '#818cf8',
+    unit: 'h',
+    step: 1,
+    defaultThreshold: 8,
+    formatValue: (val) => `${val || 0}h`,
+  },
+  {
+    id: 'idle',
+    title: 'Idle Time',
+    icon: '⏳',
+    colorTheme: 'habit-amber',
+    accentColor: '#f59e0b',
+    unit: 'h',
+    step: 1,
+    defaultThreshold: 2,
+    formatValue: (val) => `${val || 0}h`,
+  },
 ];
 
 export const STORAGE_HABIT_DATA = 'dashboard_habits_store_v2';
@@ -125,17 +147,19 @@ export function getTodayIso() {
  * Load thresholds from localStorage with defaults
  */
 export function getHabitThresholds() {
+  let thresholds = {};
   try {
     const raw = localStorage.getItem(STORAGE_HABIT_THRESHOLDS);
-    if (raw) return JSON.parse(raw);
+    if (raw) thresholds = JSON.parse(raw);
   } catch (e) {
     console.warn('Error reading thresholds:', e);
   }
-  const defaults = {};
   HABIT_CATEGORIES.forEach((cat) => {
-    defaults[cat.id] = cat.defaultThreshold;
+    if (thresholds[cat.id] === undefined) {
+      thresholds[cat.id] = cat.defaultThreshold;
+    }
   });
-  return defaults;
+  return thresholds;
 }
 
 /**
@@ -152,17 +176,19 @@ export function setHabitThreshold(catId, newThreshold) {
  * Load increment steps from localStorage with defaults
  */
 export function getHabitSteps() {
+  let steps = {};
   try {
     const raw = localStorage.getItem(STORAGE_HABIT_STEPS);
-    if (raw) return JSON.parse(raw);
+    if (raw) steps = JSON.parse(raw);
   } catch (e) {
     console.warn('Error reading steps:', e);
   }
-  const defaults = {};
   HABIT_CATEGORIES.forEach((cat) => {
-    defaults[cat.id] = cat.step;
+    if (steps[cat.id] === undefined) {
+      steps[cat.id] = cat.step;
+    }
   });
-  return defaults;
+  return steps;
 }
 
 /**
@@ -184,17 +210,17 @@ export function setHabitStep(catId, newStep) {
  * }
  */
 export function loadAllHabitsData() {
+  let data = {};
   try {
     const raw = localStorage.getItem(STORAGE_HABIT_DATA);
-    if (raw) return JSON.parse(raw);
+    if (raw) data = JSON.parse(raw);
   } catch (e) {
     console.warn('Error reading habits data:', e);
   }
-  const initial = {};
   HABIT_CATEGORIES.forEach((cat) => {
-    initial[cat.id] = {};
+    if (!data[cat.id]) data[cat.id] = {};
   });
-  return initial;
+  return data;
 }
 
 /**
