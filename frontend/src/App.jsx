@@ -41,6 +41,17 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Smooth in-app splash dismissal (fast, silky transition on PC & mobile)
+  useEffect(() => {
+    const splash = document.getElementById('app-splash');
+    if (splash) {
+      const timer = setTimeout(() => {
+        splash.classList.add('fade-out');
+        setTimeout(() => splash.remove(), 350);
+      }, 420);
+      return () => clearTimeout(timer);
+    }
+  }, []);
   // Handle URL path on first load and back/forward navigation
   useEffect(() => {
     const handleLocationChange = () => {

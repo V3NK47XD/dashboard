@@ -2,17 +2,119 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icon-192.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icon-192.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Personal OS" />
     <title>Personal OS — Dashboard</title>
+
+    <style>
+      /* Ultra-fast in-app splash screen (zero lag, 60fps compositor animation) */
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background-color: #080808;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        pointer-events: auto;
+      }
+      #app-splash.fade-out {
+        opacity: 0;
+        transform: scale(1.03);
+        pointer-events: none;
+      }
+      .splash-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.15rem;
+        animation: splashIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .splash-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #181818 0%, #0d0d0d 100%);
+        border: 1.5px solid rgba(134, 59, 255, 0.55);
+        box-shadow: 0 0 25px rgba(134, 59, 255, 0.35), inset 0 0 12px rgba(134, 59, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .splash-core {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background-color: #863bff;
+        box-shadow: 0 0 12px #863bff, inset 0 0 4px #ffffff;
+        animation: splashPulse 0.6s ease-in-out infinite alternate;
+      }
+      .splash-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 800;
+        font-size: 1.25rem;
+        color: #ffffff;
+        letter-spacing: -0.02em;
+      }
+      .splash-spark {
+        color: #facc15;
+        font-size: 1.1rem;
+      }
+      .splash-line {
+        width: 80px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+      .splash-line-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #863bff, #facc15);
+        border-radius: 9999px;
+        animation: splashFill 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @keyframes splashIn {
+        from { opacity: 0; transform: scale(0.92); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes splashPulse {
+        from { transform: scale(0.85); opacity: 0.8; }
+        to { transform: scale(1.15); opacity: 1; }
+      }
+      @keyframes splashFill {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0%); }
+      }
+    </style>
   </head>
   <body>
+    <!-- Instant In-App Splash Screen (PC & Mobile) -->
+    <div id="app-splash">
+      <div class="splash-box">
+        <div class="splash-icon">
+          <div class="splash-core"></div>
+        </div>
+        <div class="splash-title-wrap">
+          <span class="splash-spark">✦</span>
+          <span>Personal OS</span>
+        </div>
+        <div class="splash-line">
+          <div class="splash-line-fill"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
