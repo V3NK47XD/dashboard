@@ -63,7 +63,18 @@ export default function TodoList() {
   const pendingCount = todos.filter((t) => !t.completed).length;
 
   return (
-    <div className="card" style={{ padding: '1.5rem', backgroundColor: '#121212', border: '1.5px solid #2e2e2e', borderRadius: '16px' }}>
+    <div
+      className="card"
+      style={{
+        padding: '1.5rem',
+        backgroundColor: '#131313',
+        border: '1.5px solid rgba(59, 130, 246, 0.45)',
+        borderTop: '4px solid #3b82f6',
+        borderRadius: '16px',
+        backgroundImage: 'radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 65%)',
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(59, 130, 246, 0.1)',
+      }}
+    >
       <div className="card-header" style={{ marginBottom: '1.25rem' }}>
         <div>
           <h2 className="card-title" style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>Tasks & Todos</h2>
@@ -100,15 +111,16 @@ export default function TodoList() {
           style={{
             flex: 1,
             backgroundColor: '#0c0c0c',
-            border: '1.5px solid #3a3a3a',
+            border: '2px solid rgba(59, 130, 246, 0.55)',
             borderRadius: '12px',
-            padding: '0.7rem 1rem',
+            padding: '0.75rem 1rem',
             fontSize: '0.92rem',
             color: '#ffffff',
             outline: 'none',
+            boxShadow: '0 0 12px rgba(59, 130, 246, 0.12)',
           }}
-          onFocus={(e) => (e.target.style.borderColor = '#3b82f6')}
-          onBlur={(e) => (e.target.style.borderColor = '#3a3a3a')}
+          onFocus={(e) => (e.target.style.borderColor = '#60a5fa')}
+          onBlur={(e) => (e.target.style.borderColor = 'rgba(59, 130, 246, 0.55)')}
         />
         <button
           type="submit"
@@ -144,12 +156,12 @@ export default function TodoList() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '0.75rem 1rem',
-                backgroundColor: '#181818',
+                backgroundColor: todo.completed ? 'rgba(16, 185, 129, 0.04)' : 'rgba(59, 130, 246, 0.04)',
                 borderRadius: '12px',
-                border: '1.5px solid #383838',
-                borderLeft: todo.completed ? '3.5px solid #10b981' : '3.5px solid #3b82f6',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                opacity: todo.completed ? 0.7 : 1,
+                border: todo.completed ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid rgba(59, 130, 246, 0.4)',
+                borderLeft: todo.completed ? '4px solid #10b981' : '4px solid #3b82f6',
+                boxShadow: todo.completed ? '0 2px 10px rgba(16, 185, 129, 0.1)' : '0 2px 10px rgba(59, 130, 246, 0.1)',
+                opacity: todo.completed ? 0.75 : 1,
                 transition: 'all 0.15s ease',
               }}
             >

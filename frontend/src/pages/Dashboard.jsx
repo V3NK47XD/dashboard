@@ -130,18 +130,29 @@ export default function Dashboard({ onNavigate }) {
       </div>
 
       {/* Habit Completion Thresholds Configuration Panel (Bottom of Page) */}
-      <div className="card" style={{ marginTop: '0.5rem', marginBottom: '4.5rem', padding: '1.25rem', backgroundColor: '#141414', borderRadius: '16px', border: '1px solid #282828' }}>
+      <div
+        className="card"
+        style={{
+          marginTop: '0.5rem',
+          marginBottom: '4.5rem',
+          padding: '1.5rem',
+          backgroundColor: '#131313',
+          borderRadius: '16px',
+          border: '1.5px solid rgba(134, 59, 255, 0.45)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(134, 59, 255, 0.1)',
+        }}
+      >
         <div style={{ marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ fontSize: '1.2rem' }}>🎯</span>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Habit Completion Targets</h2>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: '#ffffff' }}>Habit Completion Targets</h2>
           </div>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.35rem 0 0', lineHeight: 1.4 }}>
             Adjust the completion threshold for each category. Controls streak qualification and the 5-level LeetCode heatmap intensity gradient.
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
           {HABIT_CATEGORIES.map((cat) => {
             const currentThresh = thresholds[cat.id] || cat.defaultThreshold;
             const targetLabel = cat.formatValue(currentThresh);
@@ -153,10 +164,12 @@ export default function Dashboard({ onNavigate }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '0.75rem 0.9rem',
-                  backgroundColor: '#1b1b1b',
-                  borderRadius: '12px',
-                  border: '1px solid #2a2a2a',
+                  padding: '0.8rem 1rem',
+                  backgroundColor: '#181818',
+                  borderRadius: '14px',
+                  border: `1.5px solid ${cat.accentColor}55`,
+                  borderLeft: `4px solid ${cat.accentColor}`,
+                  boxShadow: `0 2px 10px rgba(0, 0, 0, 0.3)`,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -188,22 +201,23 @@ export default function Dashboard({ onNavigate }) {
                     {targetLabel}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                     <button
                       onClick={() => handleAdjustThreshold(cat.id, currentThresh - cat.step)}
                       style={{
-                        width: '30px',
-                        height: '30px',
+                        width: '32px',
+                        height: '32px',
                         borderRadius: '8px',
-                        border: '1px solid #333',
-                        backgroundColor: '#262626',
-                        color: '#fff',
-                        fontSize: '1rem',
+                        border: `1.5px solid ${cat.accentColor}60`,
+                        backgroundColor: `${cat.accentColor}15`,
+                        color: '#ffffff',
+                        fontSize: '1.1rem',
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        transition: 'all 0.15s ease',
                       }}
                       title={`Decrease ${cat.title} target by ${cat.step}`}
                     >
@@ -212,18 +226,19 @@ export default function Dashboard({ onNavigate }) {
                     <button
                       onClick={() => handleAdjustThreshold(cat.id, currentThresh + cat.step)}
                       style={{
-                        width: '30px',
-                        height: '30px',
+                        width: '32px',
+                        height: '32px',
                         borderRadius: '8px',
-                        border: '1px solid #333',
-                        backgroundColor: '#262626',
-                        color: '#fff',
-                        fontSize: '1rem',
+                        border: `1.5px solid ${cat.accentColor}80`,
+                        backgroundColor: `${cat.accentColor}25`,
+                        color: '#ffffff',
+                        fontSize: '1.1rem',
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        transition: 'all 0.15s ease',
                       }}
                       title={`Increase ${cat.title} target by ${cat.step}`}
                     >

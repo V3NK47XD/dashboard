@@ -601,13 +601,13 @@ body {
   background: rgba(14, 14, 14, 0.88);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(134, 59, 255, 0.45);
   border-radius: 9999px;
   padding: 0.35rem 0.65rem;
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 24px rgba(134, 59, 255, 0.22);
 }
 
 .nav-item {
@@ -663,13 +663,12 @@ body {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(134, 59, 255, 0.4);
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 18px rgba(134, 59, 255, 0.6), 0 0 16px rgba(134, 59, 255, 0.35);
   margin: 0 0.25rem;
 }
 

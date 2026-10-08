@@ -206,7 +206,17 @@ export default function Settings() {
       </div>
 
       {/* 1. npoint.io Bin Configuration */}
-      <div className="card">
+      <div
+        className="card"
+        style={{
+          backgroundColor: '#131313',
+          border: '1.5px solid rgba(56, 189, 248, 0.45)',
+          borderTop: '4px solid #38bdf8',
+          borderRadius: '16px',
+          backgroundImage: 'radial-gradient(circle at top right, rgba(56, 189, 248, 0.1), transparent 70%)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(56, 189, 248, 0.08)',
+        }}
+      >
         <div className="card-header" style={{ marginBottom: '0.75rem' }}>
           <div>
             <h2 className="card-title">npoint.io Cloud Storage</h2>
@@ -280,7 +290,17 @@ export default function Settings() {
       </div>
 
       {/* 2. Encryption & Security */}
-      <div className="card">
+      <div
+        className="card"
+        style={{
+          backgroundColor: '#131313',
+          border: '1.5px solid rgba(168, 85, 247, 0.45)',
+          borderTop: '4px solid #a855f7',
+          borderRadius: '16px',
+          backgroundImage: 'radial-gradient(circle at top right, rgba(168, 85, 247, 0.1), transparent 70%)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(168, 85, 247, 0.08)',
+        }}
+      >
         <h2 className="card-title">Client-Side Encryption</h2>
         <p style={{ fontSize: '0.82rem', margin: '0 0 1rem', color: 'var(--text-muted)' }}>
           Hardware-accelerated AES-GCM 256-bit encryption. The server and npoint.io only ever see encrypted bytes.
@@ -368,7 +388,17 @@ export default function Settings() {
       </div>
 
       {/* 3. Synchronization & Diagnostics */}
-      <div className="card">
+      <div
+        className="card"
+        style={{
+          backgroundColor: '#131313',
+          border: '1.5px solid rgba(16, 185, 129, 0.45)',
+          borderTop: '4px solid #10b981',
+          borderRadius: '16px',
+          backgroundImage: 'radial-gradient(circle at top right, rgba(16, 185, 129, 0.1), transparent 70%)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(16, 185, 129, 0.08)',
+        }}
+      >
         <h2 className="card-title">Data Diagnostics & Sync</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', margin: '1rem 0' }}>
           <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', textAlign: 'center' }}>
@@ -405,7 +435,17 @@ export default function Settings() {
       </div>
 
       {/* 4. Backup & Portability */}
-      <div className="card">
+      <div
+        className="card"
+        style={{
+          backgroundColor: '#131313',
+          border: '1.5px solid rgba(250, 204, 21, 0.45)',
+          borderTop: '4px solid #facc15',
+          borderRadius: '16px',
+          backgroundImage: 'radial-gradient(circle at top right, rgba(250, 204, 21, 0.1), transparent 70%)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(250, 204, 21, 0.08)',
+        }}
+      >
         <h2 className="card-title">Backup & Portability</h2>
         <p style={{ fontSize: '0.82rem', margin: '0 0 1rem', color: 'var(--text-muted)' }}>
           Export your complete dashboard data as a standard JSON file or restore from a previous backup.

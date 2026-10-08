@@ -43,9 +43,11 @@ export default function HabitCard({
       className={`habit-card ${colorTheme}`}
       style={{
         marginBottom: '1rem',
-        border: `1px solid ${accentColor}35`,
-        borderTop: `3px solid ${accentColor}`,
-        boxShadow: `0 4px 18px rgba(0, 0, 0, 0.4)`,
+        border: `1.5px solid ${accentColor}55`,
+        borderTop: `4px solid ${accentColor}`,
+        backgroundColor: '#131313',
+        backgroundImage: `radial-gradient(circle at top right, ${accentColor}18, transparent 65%)`,
+        boxShadow: `0 8px 24px rgba(0, 0, 0, 0.45), 0 0 16px ${accentColor}12`,
       }}
     >
       {/* 1. Header with Category, Icon & Streak */}
@@ -83,10 +85,11 @@ export default function HabitCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0.65rem 0.85rem',
-          backgroundColor: 'rgba(0, 0, 0, 0.4)',
-          borderRadius: '12px',
-          border: `1px solid ${accentColor}40`,
+          padding: '0.75rem 1rem',
+          backgroundColor: '#171717',
+          borderRadius: '14px',
+          border: `1.5px solid ${accentColor}50`,
+          boxShadow: `inset 0 0 16px ${accentColor}0a`,
           marginBottom: '0.85rem',
         }}
       >
@@ -106,15 +109,17 @@ export default function HabitCard({
             disabled={todayVal <= 0}
             aria-label={`Decrease today's ${title} by ${step}`}
             style={{
-              width: '36px',
-              height: '36px',
+              width: '38px',
+              height: '38px',
               borderRadius: '10px',
-              backgroundColor: '#222222',
-              border: '1px solid #333333',
+              backgroundColor: todayVal > 0 ? `${accentColor}18` : '#1f1f1f',
+              border: `1.5px solid ${todayVal > 0 ? `${accentColor}70` : '#333333'}`,
               color: '#ffffff',
-              fontSize: '1.2rem',
+              fontSize: '1.25rem',
+              fontWeight: 700,
               cursor: todayVal <= 0 ? 'not-allowed' : 'pointer',
               opacity: todayVal <= 0 ? 0.4 : 1,
+              transition: 'all 0.15s ease',
             }}
           >
             −
@@ -124,14 +129,17 @@ export default function HabitCard({
             onClick={() => onAdjustToday(id, step)}
             aria-label={`Increase today's ${title} by ${step}`}
             style={{
-              width: '36px',
-              height: '36px',
+              width: '38px',
+              height: '38px',
               borderRadius: '10px',
-              backgroundColor: '#222222',
-              border: '1px solid #333333',
+              backgroundColor: `${accentColor}25`,
+              border: `1.5px solid ${accentColor}88`,
               color: '#ffffff',
-              fontSize: '1.2rem',
+              fontSize: '1.25rem',
+              fontWeight: 700,
               cursor: 'pointer',
+              boxShadow: `0 2px 8px ${accentColor}25`,
+              transition: 'all 0.15s ease',
             }}
           >
             +
@@ -201,10 +209,10 @@ export default function HabitCard({
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(26px, 1fr))',
           gap: '5px',
-          padding: '0.6rem',
-          backgroundColor: 'rgba(0, 0, 0, 0.35)',
-          borderRadius: '12px',
-          border: `1px solid ${accentColor}30`,
+          padding: '0.75rem',
+          backgroundColor: '#161616',
+          borderRadius: '14px',
+          border: `1.5px solid ${accentColor}40`,
         }}
       >
         {heatmapDays.map((d) => {
@@ -213,11 +221,10 @@ export default function HabitCard({
             const pixelBorder = isToday
               ? '2px solid #ffffff'
               : d.intensity >= 3
-              ? `1.5px solid ${accentColor}`
+              ? `2px solid ${accentColor}`
               : d.intensity > 0
-              ? `1px solid ${accentColor}`
-              : `1px solid ${accentColor}45`;
-
+              ? `1.5px solid ${accentColor}cc`
+              : `1px solid ${accentColor}55`;
             return (
               <div
                 key={d.dateIso}

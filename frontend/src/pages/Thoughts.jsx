@@ -89,18 +89,20 @@ export default function Thoughts() {
           minHeight: '520px',
           maxHeight: '760px',
           padding: 0,
-          backgroundColor: '#111111',
-          border: '1.5px solid #2e2e2e',
+          backgroundColor: '#131313',
+          border: '1.5px solid rgba(134, 59, 255, 0.45)',
+          borderTop: '4px solid #863bff',
           borderRadius: '16px',
           overflow: 'hidden',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+          backgroundImage: 'radial-gradient(circle at top right, rgba(134, 59, 255, 0.12), transparent 70%)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(134, 59, 255, 0.12)',
         }}
       >
         {/* Chat Top Header with Border */}
         <div
           style={{
             padding: '0.85rem 1.25rem',
-            borderBottom: '1px solid #262626',
+            borderBottom: '1.5px solid rgba(134, 59, 255, 0.25)',
             backgroundColor: '#161616',
             display: 'flex',
             alignItems: 'center',
@@ -149,8 +151,8 @@ export default function Thoughts() {
                 paddingTop: '0.35rem',
                 paddingBottom: '0.35rem',
                 fontSize: '0.8rem',
-                backgroundColor: '#0d0d0d',
-                border: '1px solid #333333',
+                backgroundColor: 'rgba(134, 59, 255, 0.05)',
+                border: '1.5px solid rgba(134, 59, 255, 0.4)',
                 borderRadius: '8px',
               }}
             />
@@ -191,12 +193,12 @@ export default function Thoughts() {
                   style={{
                     alignSelf: 'flex-start',
                     maxWidth: '85%',
-                    backgroundColor: '#181818',
-                    border: '1.5px solid #2f2f2f',
-                    borderLeft: '3px solid #863bff',
+                    backgroundColor: 'rgba(134, 59, 255, 0.04)',
+                    border: '1.5px solid rgba(134, 59, 255, 0.4)',
+                    borderLeft: '4px solid #863bff',
                     borderRadius: '14px',
-                    padding: '0.8rem 1rem',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                    padding: '0.85rem 1.1rem',
+                    boxShadow: '0 3px 12px rgba(0, 0, 0, 0.35), 0 0 10px rgba(134, 59, 255, 0.08)',
                     position: 'relative',
                     transition: 'border-color 0.15s ease',
                   }}
@@ -253,7 +255,7 @@ export default function Thoughts() {
           onSubmit={handleSendThought}
           style={{
             padding: '0.85rem 1rem',
-            borderTop: '1px solid #262626',
+            borderTop: '1.5px solid rgba(134, 59, 255, 0.25)',
             backgroundColor: '#161616',
             display: 'flex',
             alignItems: 'center',
@@ -270,9 +272,9 @@ export default function Thoughts() {
               disabled={isSending}
               style={{
                 width: '100%',
-                padding: '0.65rem 0.85rem',
+                padding: '0.7rem 0.95rem',
                 backgroundColor: '#0c0c0c',
-                border: '1.5px solid #383838',
+                border: '1.5px solid rgba(134, 59, 255, 0.55)',
                 borderRadius: '12px',
                 color: '#ffffff',
                 fontSize: '0.9rem',
@@ -282,9 +284,10 @@ export default function Thoughts() {
                 lineHeight: 1.4,
                 display: 'block',
                 boxSizing: 'border-box',
+                boxShadow: '0 0 10px rgba(134, 59, 255, 0.1)',
               }}
-              onFocus={(e) => (e.target.style.borderColor = '#863bff')}
-              onBlur={(e) => (e.target.style.borderColor = '#383838')}
+              onFocus={(e) => (e.target.style.borderColor = '#a855f7')}
+              onBlur={(e) => (e.target.style.borderColor = 'rgba(134, 59, 255, 0.55)')}
             />
           </div>
 
