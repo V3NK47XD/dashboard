@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../db/database';
 import {
   getNpointUrl,
-  setNpointUrl,
   getEncryptionMode,
   getLastSyncTime,
+  getCachedPassword,
   syncWithNpoint,
+  connectAndFetchFirst,
   changeEncryptionSettings,
   clearCachedPassword,
   exportPlainJsonBackup,
@@ -66,11 +67,16 @@ export default function Settings() {
       setUrlMessage('URL cannot be empty.');
       return;
     }
-    const normalized = setNpointUrl(newUrlInput);
-    setUrlState(normalized);
-    setIsEditingUrl(false);
-    setUrlMessage('✓ Storage URL updated.');
-    handleForceSync();
+    try {
+      setUrlMessage('Fetching cloud data to device...');
+      await connectAndFetchFirst(newUrlInput, getCachedPassword(), encMode);
+      setUrlState(newUrlInput);
+      setIsEditingUrl(false);
+      setUrlMessage('✓ Connected! Fetched cloud data and updated device.');
+      loadSettings();
+    } catch (err) {
+      setUrlMessage(`Failed to connect: ${err.message}`);
+    }
   };
 
   const handleAutoCreateBin = async () => {

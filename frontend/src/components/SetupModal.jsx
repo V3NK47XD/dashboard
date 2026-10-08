@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import {
-  setNpointUrl,
-  setEncryptionMode,
-  setCachedPassword,
+  connectAndFetchFirst,
   createNpointBin,
-  syncWithNpoint,
 } from '../sync/npointSync';
 
 export default function SetupModal({ isOpen, onClose }) {
@@ -61,38 +58,21 @@ export default function SetupModal({ isOpen, onClose }) {
 
     setLoading(true);
     try {
-      const normalized = setNpointUrl(url);
-      setEncryptionMode(encryptionChoice);
-      if (encryptionChoice === 'password') {
-        setCachedPassword(password, rememberPassword);
-      } else {
-        setCachedPassword('');
-      }
+      setStatusMessage({ text: 'Fetching cloud data to device...', type: 'info' });
+      const result = await connectAndFetchFirst(url, encryptionChoice === 'password' ? password : '', encryptionChoice);
 
-      setStatusMessage({ text: 'Testing connection and initializing sync...', type: 'info' });
-      const result = await syncWithNpoint();
-
-      if (result.success || result.reason === 'OFFLINE') {
-        setStatusMessage({ text: '✓ Connected successfully!', type: 'success' });
+      if (result.success) {
+        setStatusMessage({ text: '✓ Connected & synced from cloud!', type: 'success' });
         setTimeout(() => {
           onClose();
         }, 600);
-      } else if (result.reason === 'LOCKED') {
-        setStatusMessage({
-          text: 'This bin is already encrypted. Please verify password.',
-          type: 'error',
-        });
-      } else {
-        setStatusMessage({
-          text: `Warning: Saved settings, but sync reported: ${result.error || result.reason}`,
-          type: 'info',
-        });
-        setTimeout(() => {
-          onClose();
-        }, 1200);
       }
     } catch (err) {
-      setStatusMessage({ text: `Connection error: ${err.message}`, type: 'error' });
+      if (err.code === 'PASSWORD_REQUIRED' || err.code === 'INVALID_PASSWORD') {
+        setStatusMessage({ text: 'Incorrect password for this encrypted bin.', type: 'error' });
+      } else {
+        setStatusMessage({ text: `Connection error: ${err.message}`, type: 'error' });
+      }
     } finally {
       setLoading(false);
     }

@@ -3,27 +3,21 @@ import DateStrip from '../components/DateStrip';
 import HabitCard from '../components/HabitCard';
 import HabitMatrix from '../components/HabitMatrix';
 import HabitNoteModal from '../components/HabitNoteModal';
-import { DEFAULT_HABITS, calculateHabitStreak, toggleHabitForDate, adjustHabitCounter } from '../db/habits';
+import { getActiveHabits, setHabitThreshold, calculateHabitStreak, toggleHabitForDate, adjustHabitCounter } from '../db/habits';
 import { getDailyLogs } from '../db/daily';
-import { getTodos, toggleTodo } from '../db/todos';
-import { getThoughts } from '../db/thoughts';
 import { subscribeDataChanges } from '../sync/npointSync';
 
 export default function Dashboard({ onNavigate }) {
   const [viewMode, setViewMode] = useState('cards'); // 'cards' (Image #2) or 'matrix' (Image #1)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [logs, setLogs] = useState([]);
-  const [todos, setTodos] = useState([]);
-  const [thoughts, setThoughts] = useState([]);
+  const [activeHabits, setActiveHabits] = useState(() => getActiveHabits());
   const [noteModalHabit, setNoteModalHabit] = useState(null);
 
   const loadAllData = async () => {
     const allLogs = await getDailyLogs();
     setLogs(allLogs);
-    const allTodos = await getTodos();
-    setTodos(allTodos.slice(0, 4));
-    const allThoughts = await getThoughts();
-    setThoughts(allThoughts.slice(0, 3));
+    setActiveHabits(getActiveHabits());
   };
 
   useEffect(() => {
@@ -80,12 +74,16 @@ export default function Dashboard({ onNavigate }) {
     loadAllData();
   };
 
+  const handleAdjustThreshold = (habitId, newThresh) => {
+    setHabitThreshold(habitId, newThresh);
+    setActiveHabits(getActiveHabits());
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
       {/* Top Header matching Image #2 */}
       <div className="habit-header">
         <h1 className="habit-header-title">{formattedHeaderDate}</h1>
-
         <div className="habit-header-actions">
           {/* View Toggle Button: Cards vs Matrix */}
           <button
@@ -138,7 +136,7 @@ export default function Dashboard({ onNavigate }) {
       {/* View Mode: Cards View (Image #2) */}
       {viewMode === 'cards' && (
         <div className="habit-cards-stream">
-          {DEFAULT_HABITS.map((habit) => {
+          {activeHabits.map((habit) => {
             const streak = calculateHabitStreak(habit, logsMap);
 
             return (
@@ -154,77 +152,106 @@ export default function Dashboard({ onNavigate }) {
             );
           })}
 
-          {/* Secondary Quick Access Widgets: Tasks & Journal Preview */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
-            {/* Quick Tasks */}
-            <div className="card" style={{ padding: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Tasks to do</span>
-                <button
-                  style={{ background: 'none', border: 'none', color: '#facc15', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
-                  onClick={() => onNavigate('todos')}
-                >
-                  View All →
-                </button>
+          {/* Habit Completion Thresholds Configuration */}
+          <div className="card" style={{ marginTop: '0.75rem', padding: '1.25rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>🎯</span>
+                <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Habit Completion Targets</h2>
               </div>
-              {todos.length === 0 ? (
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>All caught up! No tasks pending.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {todos.map((t) => (
-                    <div
-                      key={t.id}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={t.completed}
-                        onChange={async () => {
-                          await toggleTodo(t.id);
-                          loadAllData();
-                        }}
-                        style={{ accentColor: '#facc15' }}
-                      />
-                      <span style={{ textDecoration: t.completed ? 'line-through' : 'none', color: t.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                        {t.title}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                Adjust daily target thresholds required for each habit to be considered valid, earn streaks, and reach full intensity shades.
+              </p>
             </div>
 
-            {/* Quick Journal Thoughts */}
-            <div className="card" style={{ padding: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Journal & Thoughts</span>
-                <button
-                  style={{ background: 'none', border: 'none', color: '#facc15', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
-                  onClick={() => onNavigate('thoughts')}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {activeHabits.map((habit) => (
+                <div
+                  key={habit.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.7rem 0.85rem',
+                    backgroundColor: '#181818',
+                    borderRadius: '12px',
+                    border: '1px solid #282828',
+                  }}
                 >
-                  Timeline →
-                </button>
-              </div>
-              {thoughts.length === 0 ? (
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>No thoughts logged today.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {thoughts.map((th) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ fontSize: '1.25rem' }}>{habit.icon}</span>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#ffffff' }}>
+                        {habit.title}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Step: ±{habit.unit === 'min' ? `${habit.step}m` : habit.unit === 'hrs' ? `${(habit.step / 60).toFixed(1)}h` : `${habit.step} ${habit.unit}`}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <div
-                      key={th.id}
                       style={{
-                        padding: '0.5rem 0.65rem',
-                        backgroundColor: '#181818',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.8rem',
-                        borderLeft: '3px solid #facc15',
+                        padding: '0.3rem 0.65rem',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        minWidth: '70px',
+                        textAlign: 'center',
                       }}
                     >
-                      {th.content}
+                      {habit.formatTarget}
                     </div>
-                  ))}
+
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                      <button
+                        onClick={() => handleAdjustThreshold(habit.id, habit.threshold - habit.step)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          border: '1px solid #333',
+                          backgroundColor: '#242424',
+                          color: '#fff',
+                          fontSize: '1rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title={`Decrease ${habit.title} target by ${habit.step}`}
+                      >
+                        −
+                      </button>
+                      <button
+                        onClick={() => handleAdjustThreshold(habit.id, habit.threshold + habit.step)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          border: '1px solid #333',
+                          backgroundColor: '#242424',
+                          color: '#fff',
+                          fontSize: '1rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title={`Increase ${habit.title} target by ${habit.step}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
@@ -237,7 +264,7 @@ export default function Dashboard({ onNavigate }) {
             Tap any block to toggle habit completion • Scroll horizontally for all dates
           </div>
           <HabitMatrix
-            habits={DEFAULT_HABITS}
+            habits={activeHabits}
             logsMap={logsMap}
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}

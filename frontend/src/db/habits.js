@@ -1,3 +1,4 @@
+import { triggerDebouncedSync } from '../sync/npointSync';
 import { getDailyLogs, getDailyLogByDate, saveDailyMetrics } from './daily';
 
 export const DEFAULT_HABITS = [
@@ -74,6 +75,53 @@ export const DEFAULT_HABITS = [
     formatTarget: '45m',
   },
 ];
+
+/**
+ * Get current user-configured habit thresholds from localStorage
+ */
+export function getHabitThresholds() {
+  try {
+    const raw = localStorage.getItem('dashboard_habit_thresholds');
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn('Error reading habit thresholds:', e);
+  }
+  const defaults = {};
+  DEFAULT_HABITS.forEach((h) => {
+    defaults[h.id] = h.threshold;
+  });
+  return defaults;
+}
+
+/**
+ * Set habit threshold, save to localStorage and trigger sync to npoint.io
+ */
+export function setHabitThreshold(habitId, newThreshold) {
+  const current = getHabitThresholds();
+  const found = DEFAULT_HABITS.find((h) => h.id === habitId);
+  const minVal = found ? found.step : 1;
+  current[habitId] = Math.max(minVal, Number(newThreshold));
+  localStorage.setItem('dashboard_habit_thresholds', JSON.stringify(current));
+  triggerDebouncedSync();
+  return current;
+}
+
+/**
+ * Return habit definitions with active user-configured thresholds & labels
+ */
+export function getActiveHabits() {
+  const custom = getHabitThresholds();
+  return DEFAULT_HABITS.map((h) => {
+    const thresh = custom[h.id] !== undefined ? custom[h.id] : h.threshold;
+    return {
+      ...h,
+      threshold: thresh,
+      formatTarget: h.formatValue(thresh),
+    };
+  });
+}
 
 /**
  * Returns intensity level 0 to 4 based on counter value relative to threshold:
