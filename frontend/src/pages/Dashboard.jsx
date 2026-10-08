@@ -72,23 +72,23 @@ export default function Dashboard({ onNavigate }) {
     }
   };
 
-  // Adjust completion threshold
+  // Set completion threshold directly from typed input
   const handleAdjustThreshold = async (catId, newThresh) => {
-    const updated = setHabitThreshold(catId, newThresh);
-    setThresholds(updated);
+    const val = Math.max(1, parseInt(newThresh, 10) || 1);
+    const updated = setHabitThreshold(catId, val);
+    setThresholds({ ...updated });
 
     try {
-      await syncUpdateThreshold(catId, updated[catId]);
+      await syncUpdateThreshold(catId, val);
     } catch (e) {
       console.warn('Background sync note:', e);
     }
   };
 
-  // Adjust increment step size
-  const handleAdjustStep = (catId, delta) => {
-    const current = steps[catId] || 1;
-    const next = Math.max(1, current + delta);
-    const updated = setHabitStep(catId, next);
+  // Set increment step size directly from typed input
+  const handleSetStep = (catId, newStep) => {
+    const val = Math.max(1, parseInt(newStep, 10) || 1);
+    const updated = setHabitStep(catId, val);
     setSteps({ ...updated });
   };
 
@@ -196,9 +196,6 @@ export default function Dashboard({ onNavigate }) {
             {HABIT_CATEGORIES.map((cat) => {
               const currentThresh = thresholds[cat.id] || cat.defaultThreshold;
               const currentStep = steps[cat.id] || cat.step;
-              const targetLabel = cat.formatValue(currentThresh);
-              const stepLabel = `±${currentStep}${cat.unit === 'min' ? 'm' : cat.unit === 'g' || cat.unit === 'ml' ? cat.unit : ''}`;
-
               return (
                 <div
                   key={cat.id}
@@ -218,85 +215,55 @@ export default function Dashboard({ onNavigate }) {
                     <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#ffffff' }}>{cat.title}</span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    {/* Target / Goal control */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Goal:</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: cat.accentColor, minWidth: '45px' }}>{targetLabel}</span>
-                      <button
-                        onClick={() => handleAdjustThreshold(cat.id, Math.max(currentStep, currentThresh - currentStep))}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                    {/* Goal / Target Typing Input */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
+                        Goal ({cat.unit})
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={currentThresh}
+                        onChange={(e) => handleAdjustThreshold(cat.id, e.target.value)}
                         style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '7px',
-                          border: `1px solid ${cat.accentColor}50`,
-                          backgroundColor: '#202020',
-                          color: '#ffffff',
-                          fontSize: '1rem',
+                          width: '100%',
+                          backgroundColor: '#0f0f0f',
+                          border: `1.5px solid ${cat.accentColor}55`,
+                          borderRadius: '8px',
+                          padding: '0.35rem 0.55rem',
+                          fontSize: '0.86rem',
                           fontWeight: 700,
-                          cursor: 'pointer',
+                          color: cat.accentColor,
+                          outline: 'none',
+                          boxSizing: 'border-box',
                         }}
-                        title={`Decrease ${cat.title} goal`}
-                      >
-                        −
-                      </button>
-                      <button
-                        onClick={() => handleAdjustThreshold(cat.id, currentThresh + currentStep)}
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '7px',
-                          border: `1px solid ${cat.accentColor}50`,
-                          backgroundColor: '#202020',
-                          color: '#ffffff',
-                          fontSize: '1rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title={`Increase ${cat.title} goal`}
-                      >
-                        +
-                      </button>
+                      />
                     </div>
 
-                    {/* Increment Step control */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Step:</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#facc15', minWidth: '42px' }}>{stepLabel}</span>
-                      <button
-                        onClick={() => handleAdjustStep(cat.id, cat.unit === 'ml' ? -50 : cat.unit === 'min' ? -5 : -1)}
+                    {/* Increment Step Typing Input */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
+                        Step ({cat.unit})
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={currentStep}
+                        onChange={(e) => handleSetStep(cat.id, e.target.value)}
                         style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '7px',
-                          border: '1px solid #444',
-                          backgroundColor: '#202020',
-                          color: '#ffffff',
-                          fontSize: '1rem',
+                          width: '100%',
+                          backgroundColor: '#0f0f0f',
+                          border: '1.5px solid rgba(250, 204, 21, 0.45)',
+                          borderRadius: '8px',
+                          padding: '0.35rem 0.55rem',
+                          fontSize: '0.86rem',
                           fontWeight: 700,
-                          cursor: 'pointer',
+                          color: '#facc15',
+                          outline: 'none',
+                          boxSizing: 'border-box',
                         }}
-                        title={`Decrease ${cat.title} step size`}
-                      >
-                        −
-                      </button>
-                      <button
-                        onClick={() => handleAdjustStep(cat.id, cat.unit === 'ml' ? 50 : cat.unit === 'min' ? 5 : 1)}
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '7px',
-                          border: '1px solid #444',
-                          backgroundColor: '#202020',
-                          color: '#ffffff',
-                          fontSize: '1rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title={`Increase ${cat.title} step size`}
-                      >
-                        +
-                      </button>
+                      />
                     </div>
                   </div>
                 </div>

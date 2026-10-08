@@ -143,9 +143,7 @@ export function getHabitThresholds() {
  */
 export function setHabitThreshold(catId, newThreshold) {
   const current = getHabitThresholds();
-  const cat = HABIT_CATEGORIES.find((c) => c.id === catId);
-  const minVal = cat ? cat.step : 1;
-  current[catId] = Math.max(minVal, Number(newThreshold));
+  current[catId] = Math.max(1, Number(newThreshold) || 1);
   localStorage.setItem(STORAGE_HABIT_THRESHOLDS, JSON.stringify(current));
   return current;
 }
