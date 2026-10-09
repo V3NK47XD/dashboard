@@ -4,7 +4,7 @@
  * Supports root and subdirectory deployments (e.g. GitHub Pages).
  */
 
-const CACHE_NAME = 'personal-os-v1';
+const CACHE_NAME = 'personal-os-v2';
 const BASE = self.location.pathname.substring(0, self.location.pathname.lastIndexOf('/') + 1);
 
 const ASSETS_TO_CACHE = [
@@ -19,10 +19,40 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // 1. Cache shell assets
+      await cache.addAll(ASSETS_TO_CACHE).catch((err) => {
         console.warn('[SW] Pre-caching error (non-fatal):', err);
       });
+
+      // 2. Fetch and parse index.html to precache JS and CSS bundles immediately for 100% offline access
+      try {
+        const resp = await fetch(`${BASE}index.html`);
+        if (resp && resp.status === 200) {
+          const html = await resp.text();
+          const matches = html.match(/(?:src|href)="([^"]+\.(?:js|css))"/g) || [];
+          const bundleUrls = matches.map((m) => {
+            const raw = m.replace(/^(?:src|href)="/, '').replace(/"$/, '');
+            return new URL(raw, self.location.href).href;
+          });
+          if (bundleUrls.length > 0) {
+            await Promise.all(
+              bundleUrls.map(async (bundleUrl) => {
+                try {
+                  const bResp = await fetch(bundleUrl);
+                  if (bResp && bResp.status === 200) {
+                    await cache.put(bundleUrl, bResp);
+                  }
+                } catch (e) {
+                  console.warn('[SW] Bundle asset cache failed:', bundleUrl, e);
+                }
+              })
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('[SW] Dynamic bundle discovery failed:', err);
+      }
     })
   );
 });
@@ -70,7 +100,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);

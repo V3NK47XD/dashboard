@@ -21,6 +21,8 @@ export default function Dashboard({ onNavigate }) {
   const [habitsData, setHabitsData] = useState(() => loadAllHabitsData());
   const [thresholds, setThresholds] = useState(() => getHabitThresholds());
   const [steps, setSteps] = useState(() => getHabitSteps());
+  const [editingThresh, setEditingThresh] = useState({});
+  const [editingSteps, setEditingSteps] = useState({});
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const todayIso = useMemo(() => getTodayIso(), []);
 
@@ -224,8 +226,30 @@ export default function Dashboard({ onNavigate }) {
                       <input
                         type="number"
                         min="1"
-                        value={currentThresh}
-                        onChange={(e) => handleAdjustThreshold(cat.id, e.target.value)}
+                        value={editingThresh[cat.id] !== undefined ? editingThresh[cat.id] : currentThresh}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setEditingThresh((prev) => ({ ...prev, [cat.id]: raw }));
+                          if (raw.trim() !== '') {
+                            const parsed = parseInt(raw, 10);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              handleAdjustThreshold(cat.id, parsed);
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          const raw = editingThresh[cat.id];
+                          if (raw !== undefined) {
+                            const parsed = parseInt(raw, 10);
+                            const commitVal = Math.max(1, isNaN(parsed) ? (thresholds[cat.id] || cat.defaultThreshold) : parsed);
+                            handleAdjustThreshold(cat.id, commitVal);
+                            setEditingThresh((prev) => {
+                              const next = { ...prev };
+                              delete next[cat.id];
+                              return next;
+                            });
+                          }
+                        }}
                         style={{
                           width: '100%',
                           backgroundColor: '#0f0f0f',
@@ -240,7 +264,6 @@ export default function Dashboard({ onNavigate }) {
                         }}
                       />
                     </div>
-
                     {/* Increment Step Typing Input */}
                     <div>
                       <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
@@ -249,8 +272,30 @@ export default function Dashboard({ onNavigate }) {
                       <input
                         type="number"
                         min="1"
-                        value={currentStep}
-                        onChange={(e) => handleSetStep(cat.id, e.target.value)}
+                        value={editingSteps[cat.id] !== undefined ? editingSteps[cat.id] : currentStep}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setEditingSteps((prev) => ({ ...prev, [cat.id]: raw }));
+                          if (raw.trim() !== '') {
+                            const parsed = parseInt(raw, 10);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              handleSetStep(cat.id, parsed);
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          const raw = editingSteps[cat.id];
+                          if (raw !== undefined) {
+                            const parsed = parseInt(raw, 10);
+                            const commitVal = Math.max(1, isNaN(parsed) ? (steps[cat.id] || cat.step) : parsed);
+                            handleSetStep(cat.id, commitVal);
+                            setEditingSteps((prev) => {
+                              const next = { ...prev };
+                              delete next[cat.id];
+                              return next;
+                            });
+                          }
+                        }}
                         style={{
                           width: '100%',
                           backgroundColor: '#0f0f0f',

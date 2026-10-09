@@ -41,6 +41,15 @@ export default function TodoList() {
     loadTodos();
   };
 
+  const handleClearCompleted = async () => {
+    const completedTodos = todos.filter((t) => t.completed);
+    if (completedTodos.length === 0) return;
+    for (const t of completedTodos) {
+      await deleteTodo(t.id);
+    }
+    loadTodos();
+  };
+
   const handleStartEdit = (todo) => {
     setEditingId(todo.id);
     setEditingText(todo.title);
@@ -80,8 +89,8 @@ export default function TodoList() {
                 fontSize: '0.74rem',
                 padding: '0.2rem 0.55rem',
                 borderRadius: '8px',
-                border: filter === f ? '1px solid #3b82f6' : '1px solid #2a2a2a',
-                backgroundColor: filter === f ? '#1d4ed8' : '#141414',
+                border: filter === f ? '1px solid #863bff' : '1px solid #2a2a2a',
+                backgroundColor: filter === f ? '#863bff' : '#141414',
                 color: '#ffffff',
               }}
               onClick={() => setFilter(f)}
@@ -90,8 +99,31 @@ export default function TodoList() {
             </button>
           ))}
         </div>
-      </div>
 
+        {completedCount > 0 && (
+          <button
+            onClick={handleClearCompleted}
+            title="Clear all completed tasks"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              padding: '0.2rem 0.55rem',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              color: '#f87171',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Trash2 size={12} />
+            <span>Clear Finished</span>
+          </button>
+        )}
+      </div>
       {/* Separate Input Box (Outside the List Card) */}
       <form
         onSubmit={handleCreate}
@@ -100,9 +132,9 @@ export default function TodoList() {
           gap: '0.45rem',
           padding: '0.35rem 0.45rem 0.35rem 0.75rem',
           backgroundColor: '#121212',
-          border: '1.5px solid rgba(250, 204, 21, 0.45)',
+          border: '1.5px solid rgba(134, 59, 255, 0.45)',
           borderRadius: '12px',
-          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4), 0 0 10px rgba(250, 204, 21, 0.08)',
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4), 0 0 10px rgba(134, 59, 255, 0.1)',
         }}
       >
         <input
@@ -131,9 +163,9 @@ export default function TodoList() {
             width: '32px',
             height: '32px',
             borderRadius: '8px',
-            backgroundColor: newTitle.trim() ? '#facc15' : '#222222',
+            backgroundColor: newTitle.trim() ? '#863bff' : '#222222',
             border: 'none',
-            color: newTitle.trim() ? '#000000' : '#ffffff',
+            color: '#ffffff',
             cursor: newTitle.trim() ? 'pointer' : 'default',
             opacity: newTitle.trim() ? 1 : 0.5,
             transition: 'all 0.15s ease',
@@ -153,8 +185,8 @@ export default function TodoList() {
           overflowY: 'auto',
           padding: '0.65rem 0.75rem',
           backgroundColor: '#111111',
-          border: '1.5px solid rgba(250, 204, 21, 0.35)',
-          borderTop: '3px solid #facc15',
+          border: '1.5px solid rgba(134, 59, 255, 0.4)',
+          borderTop: '3px solid #863bff',
           borderRadius: '14px',
           display: 'flex',
           flexDirection: 'column',
