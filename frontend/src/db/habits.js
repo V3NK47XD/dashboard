@@ -111,10 +111,10 @@ export const HABIT_CATEGORIES = [
     icon: '🌙',
     colorTheme: 'habit-indigo',
     accentColor: '#818cf8',
-    unit: 'h',
-    step: 1,
-    defaultThreshold: 8,
-    formatValue: (val) => `${val || 0}h`,
+    unit: 'min',
+    step: 30,
+    defaultThreshold: 480,
+    formatValue: (val) => `${val || 0}m`,
   },
   {
     id: 'idle',
@@ -122,10 +122,10 @@ export const HABIT_CATEGORIES = [
     icon: '⏳',
     colorTheme: 'habit-amber',
     accentColor: '#f59e0b',
-    unit: 'h',
-    step: 1,
-    defaultThreshold: 2,
-    formatValue: (val) => `${val || 0}h`,
+    unit: 'min',
+    step: 15,
+    defaultThreshold: 60,
+    formatValue: (val) => `${val || 0}m`,
   },
 ];
 
@@ -159,6 +159,13 @@ export function getHabitThresholds() {
       thresholds[cat.id] = cat.defaultThreshold;
     }
   });
+  // Convert legacy hour values (<= 24) for sleep & idle to minutes
+  if (thresholds.sleep && thresholds.sleep <= 24) {
+    thresholds.sleep = thresholds.sleep * 60;
+  }
+  if (thresholds.idle && thresholds.idle <= 24) {
+    thresholds.idle = thresholds.idle * 60;
+  }
   return thresholds;
 }
 
@@ -188,6 +195,13 @@ export function getHabitSteps() {
       steps[cat.id] = cat.step;
     }
   });
+  // Convert legacy hour step values (<= 5) for sleep & idle to minutes
+  if (steps.sleep && steps.sleep <= 5) {
+    steps.sleep = 30;
+  }
+  if (steps.idle && steps.idle <= 5) {
+    steps.idle = 15;
+  }
   return steps;
 }
 

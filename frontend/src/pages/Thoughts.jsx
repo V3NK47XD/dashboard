@@ -3,6 +3,27 @@ import { getThoughts, searchThoughtsLocally, deleteThought, createThought } from
 import { subscribeDataChanges } from '../sync/npointSync';
 import { Send, Trash2, Search } from 'lucide-react';
 
+const THOUGHT_COLORS = [
+  '#facc15', // gold / yellow
+  '#38bdf8', // sky blue
+  '#ec4899', // pink
+  '#10b981', // emerald green
+  '#a855f7', // purple
+  '#f97316', // orange
+  '#06b6d4', // cyan
+  '#84cc16', // lime
+  '#f43f5e', // rose
+  '#6366f1', // indigo
+];
+
+function getThoughtColor(id = '') {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) & 0xffffffff;
+  }
+  return THOUGHT_COLORS[Math.abs(hash) % THOUGHT_COLORS.length];
+}
+
 export default function Thoughts() {
   const [thoughts, setThoughts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -157,6 +178,7 @@ export default function Thoughts() {
                 hour: '2-digit',
                 minute: '2-digit',
               });
+              const bubbleColor = getThoughtColor(th.id);
 
               return (
                 <div
@@ -164,12 +186,12 @@ export default function Thoughts() {
                   style={{
                     alignSelf: 'flex-start',
                     maxWidth: '85%',
-                    backgroundColor: 'rgba(134, 59, 255, 0.04)',
-                    border: '1px solid rgba(134, 59, 255, 0.35)',
-                    borderLeft: '3px solid #863bff',
-                    borderRadius: '10px',
-                    padding: '0.45rem 0.7rem',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                    backgroundColor: `${bubbleColor}0e`,
+                    border: `1.5px solid ${bubbleColor}55`,
+                    borderLeft: `4px solid ${bubbleColor}`,
+                    borderRadius: '12px',
+                    padding: '0.55rem 0.85rem',
+                    boxShadow: `0 2px 10px rgba(0, 0, 0, 0.35), 0 0 10px ${bubbleColor}15`,
                     position: 'relative',
                   }}
                 >
