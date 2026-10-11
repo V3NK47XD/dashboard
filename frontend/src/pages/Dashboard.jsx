@@ -23,6 +23,7 @@ export default function Dashboard({ onNavigate }) {
   const [steps, setSteps] = useState(() => getHabitSteps());
   const [editingThresh, setEditingThresh] = useState({});
   const [editingSteps, setEditingSteps] = useState({});
+  const [isDetailedOpen, setIsDetailedOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const todayIso = useMemo(() => getTodayIso(), []);
 
@@ -119,29 +120,215 @@ export default function Dashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* 8 Habit Category Cards with Month Heatmaps & Today Steppers */}
-      <div className="habit-cards-stream">
+      {/* 1. Main Daily Habit Tracking Grid (Today Alone, No Charts) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+          gap: '0.65rem',
+          marginBottom: '0.85rem',
+        }}
+      >
         {HABIT_CATEGORIES.map((cat) => {
           const catHistory = habitsData[cat.id] || {};
           const todayVal = catHistory[todayIso] || 0;
           const threshold = thresholds[cat.id] || cat.defaultThreshold;
+          const currentStep = steps[cat.id] || cat.step;
           const streak = calculateCategoryStreak(cat.id, catHistory, threshold);
+          const isValid = todayVal >= threshold;
 
           return (
-            <HabitCard
+            <div
               key={cat.id}
-              category={cat}
-              todayVal={todayVal}
-              threshold={threshold}
-              streak={streak}
-              historyMap={catHistory}
-              onAdjustToday={handleAdjustToday}
-              stepOverride={steps[cat.id] || cat.step}
-            />
+              style={{
+                padding: '0.65rem 0.75rem',
+                backgroundColor: '#121212',
+                border: `1.5px solid ${isValid ? cat.accentColor : cat.accentColor + '30'}`,
+                borderLeft: `4px solid ${cat.accentColor}`,
+                borderRadius: '13px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '0.45rem',
+                boxShadow: isValid ? `0 2px 10px ${cat.accentColor}20` : '0 2px 8px rgba(0, 0, 0, 0.35)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {/* Icon, Title & Streak */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, overflow: 'hidden' }}>
+                  <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{cat.icon}</span>
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title={cat.title}
+                  >
+                    {cat.title}
+                  </span>
+                </div>
+
+                {streak > 0 && (
+                  <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#facc15', flexShrink: 0 }}>
+                    🔥{streak}
+                  </span>
+                )}
+              </div>
+
+              {/* Today's Logged Value & Goal Status */}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.35rem' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: isValid ? cat.accentColor : '#ffffff', lineHeight: 1.1 }}>
+                  {cat.formatValue(todayVal)}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 600,
+                    color: isValid ? '#34d399' : 'var(--text-muted)',
+                    backgroundColor: isValid ? 'rgba(52, 211, 153, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                    padding: '0.1rem 0.35rem',
+                    borderRadius: '5px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isValid ? '✓ Done' : `/ ${cat.formatValue(threshold)}`}
+                </div>
+              </div>
+
+              {/* Steppers (+ / -) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <button
+                  onClick={() => handleAdjustToday(cat.id, -currentStep)}
+                  disabled={todayVal <= 0}
+                  aria-label={`Decrease ${cat.title}`}
+                  style={{
+                    flex: 1,
+                    height: '28px',
+                    borderRadius: '7px',
+                    border: `1px solid ${todayVal > 0 ? cat.accentColor + '50' : '#282828'}`,
+                    backgroundColor: todayVal > 0 ? `${cat.accentColor}12` : '#181818',
+                    color: '#ffffff',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    cursor: todayVal <= 0 ? 'not-allowed' : 'pointer',
+                    opacity: todayVal <= 0 ? 0.35 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  −
+                </button>
+                <button
+                  onClick={() => handleAdjustToday(cat.id, currentStep)}
+                  aria-label={`Increase ${cat.title}`}
+                  style={{
+                    flex: 1,
+                    height: '28px',
+                    borderRadius: '7px',
+                    border: `1px solid ${cat.accentColor}80`,
+                    backgroundColor: `${cat.accentColor}25`,
+                    color: '#ffffff',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 2px 6px ${cat.accentColor}20`,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
           );
         })}
       </div>
 
+      {/* 2. Collapsible Detailed View: Full Heatmaps & Monthly History */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '0.75rem',
+          padding: 0,
+          backgroundColor: '#131313',
+          borderRadius: '16px',
+          border: '1.5px solid rgba(255, 255, 255, 0.1)',
+          overflow: 'hidden',
+        }}
+      >
+        <button
+          onClick={() => setIsDetailedOpen(!isDetailedOpen)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.85rem 1.15rem',
+            backgroundColor: isDetailedOpen ? '#171717' : '#131313',
+            border: 'none',
+            borderBottom: isDetailedOpen ? '1px solid #222222' : 'none',
+            color: '#ffffff',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'background-color 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontSize: '1.1rem' }}>📊</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Monthly Heatmaps & Activity History</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Full LeetCode-style activity grids, streaks, and monthly archives
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: '0.8rem',
+              color: 'var(--text-muted)',
+              transform: isDetailedOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+            }}
+          >
+            ▼
+          </div>
+        </button>
+
+        {isDetailedOpen && (
+          <div style={{ padding: '0.85rem 1rem' }}>
+            <div className="habit-cards-stream">
+              {HABIT_CATEGORIES.map((cat) => {
+                const catHistory = habitsData[cat.id] || {};
+                const todayVal = catHistory[todayIso] || 0;
+                const threshold = thresholds[cat.id] || cat.defaultThreshold;
+                const streak = calculateCategoryStreak(cat.id, catHistory, threshold);
+
+                return (
+                  <HabitCard
+                    key={cat.id}
+                    category={cat}
+                    todayVal={todayVal}
+                    threshold={threshold}
+                    streak={streak}
+                    historyMap={catHistory}
+                    onAdjustToday={handleAdjustToday}
+                    stepOverride={steps[cat.id] || cat.step}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
       {/* Collapsible Targets & Increment Steps Configuration Panel */}
       <div
         className="card"
