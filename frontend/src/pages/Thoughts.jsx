@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getThoughts, searchThoughtsLocally, deleteThought, createThought } from '../db/thoughts';
 import { subscribeDataChanges } from '../sync/npointSync';
 import { Send, Trash2, Search } from 'lucide-react';
@@ -29,7 +29,6 @@ export default function Thoughts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const messagesEndRef = useRef(null);
 
   const loadThoughts = useCallback(async () => {
     if (searchQuery.trim()) {
@@ -49,19 +48,10 @@ export default function Thoughts() {
     return () => unsub();
   }, [loadThoughts]);
 
-  // Chronological order: oldest messages up, newest messages down (chat app format)
-  const chronologicalThoughts = [...thoughts].sort(
-    (a, b) => new Date(a.created_at) - new Date(b.created_at)
+  // Newest quotes first for gallery view
+  const galleryThoughts = [...thoughts].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
   );
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [thoughts.length]);
-
   const handleSendThought = async (e) => {
     e?.preventDefault();
     if (!inputText.trim() || isSending) return;
@@ -71,7 +61,6 @@ export default function Thoughts() {
       await createThought(inputText.trim());
       setInputText('');
       await loadThoughts();
-      setTimeout(scrollToBottom, 50);
     } catch (err) {
       console.warn('Error saving thought:', err);
     } finally {
@@ -122,11 +111,14 @@ export default function Thoughts() {
             gap: '0.5rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1rem' }}>💭</span>
-            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-              {thoughts.length} {thoughts.length === 1 ? 'thought' : 'thoughts'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span style={{ fontSize: '0.95rem', color: '#a855f7' }}>✦</span>
+            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#e5e7eb' }}>
+              Quotes Gallery
             </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              ({thoughts.length})
+            </span>
           </div>
           <div style={{ position: 'relative', width: '100%', maxWidth: '160px' }}>
             <Search
@@ -151,97 +143,132 @@ export default function Thoughts() {
             />
           </div>
         </div>
-        {/* Scrollable Chat Area: Old things UP, new things DOWN */}
+        {/* Scrollable Quotes Gallery Grid */}
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
             padding: '0.75rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
-            backgroundColor: '#0e0e0e',
+            backgroundColor: '#0d0d0d',
           }}
         >
-          {chronologicalThoughts.length === 0 ? (
-            <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              {searchQuery ? 'No thoughts matching search query.' : 'No thoughts yet. Send a message to yourself below!'}
+          {galleryThoughts.length === 0 ? (
+            <div style={{ textAlign: 'center', margin: 'auto', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '0.4rem', opacity: 0.6 }}>✦</span>
+              <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#888' }}>
+                {searchQuery ? 'No quotes matching search query.' : 'Your personal quotes gallery is empty.'}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#555', marginTop: '0.25rem' }}>
+                Type a thought, quote, or reflection below to pin it to your gallery
+              </div>
             </div>
           ) : (
-            chronologicalThoughts.map((th) => {
-              const dateObj = new Date(th.created_at);
-              const formattedDate = dateObj.toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-              });
-              const formattedTime = dateObj.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-              const bubbleColor = getThoughtColor(th.id);
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                gap: '0.65rem',
+              }}
+            >
+              {galleryThoughts.map((th) => {
+                const dateObj = new Date(th.created_at);
+                const formattedDate = dateObj.toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                });
+                const bubbleColor = getThoughtColor(th.id);
 
-              return (
-                <div
-                  key={th.id}
-                  style={{
-                    alignSelf: 'flex-start',
-                    maxWidth: '85%',
-                    backgroundColor: `${bubbleColor}0e`,
-                    border: `1.5px solid ${bubbleColor}55`,
-                    borderLeft: `4px solid ${bubbleColor}`,
-                    borderRadius: '12px',
-                    padding: '0.55rem 0.85rem',
-                    boxShadow: `0 2px 10px rgba(0, 0, 0, 0.35), 0 0 10px ${bubbleColor}15`,
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.84rem', lineHeight: 1.4, color: '#f0f0f0' }}>
-                    {th.content}
-                  </div>
-
+                return (
                   <div
+                    key={th.id}
                     style={{
+                      backgroundColor: '#141414',
+                      backgroundImage: `linear-gradient(145deg, ${bubbleColor}10, #111111 70%)`,
+                      border: `1.5px solid ${bubbleColor}35`,
+                      borderTop: `3px solid ${bubbleColor}`,
+                      borderRadius: '13px',
+                      padding: '0.7rem 0.8rem',
                       display: 'flex',
-                      alignItems: 'center',
+                      flexDirection: 'column',
                       justifyContent: 'space-between',
-                      gap: '1rem',
-                      marginTop: '0.35rem',
-                      fontSize: '0.68rem',
-                      color: 'var(--text-muted)',
+                      minHeight: '95px',
+                      gap: '0.55rem',
+                      boxShadow: `0 3px 14px rgba(0, 0, 0, 0.4), 0 0 10px ${bubbleColor}10`,
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
                     }}
                   >
-                    <span>
-                      {formattedDate} • {formattedTime}
-                    </span>
+                    {/* Quote Mark & Body */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '1.25rem',
+                          lineHeight: 1,
+                          fontFamily: 'Georgia, serif',
+                          color: bubbleColor,
+                          opacity: 0.85,
+                          marginBottom: '0.15rem',
+                          userSelect: 'none',
+                        }}
+                      >
+                        “
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.84rem',
+                          fontWeight: 500,
+                          lineHeight: 1.45,
+                          color: '#f0f0f0',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {th.content}
+                      </div>
+                    </div>
 
-                    <button
-                      onClick={() => handleDelete(th.id)}
+                    {/* Quote Footer: Date + Delete */}
+                    <div
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#777',
-                        cursor: 'pointer',
-                        padding: '2px 4px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '2px',
-                        fontSize: '0.72rem',
-                        transition: 'color 0.15s ease',
+                        justifyContent: 'space-between',
+                        paddingTop: '0.35rem',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                        fontSize: '0.67rem',
+                        color: 'var(--text-muted)',
                       }}
-                      title="Delete thought"
-                      onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = '#777')}
                     >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+                      <span>{formattedDate}</span>
 
+                      <button
+                        onClick={() => handleDelete(th.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#666',
+                          cursor: 'pointer',
+                          padding: '2px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          transition: 'color 0.15s ease',
+                        }}
+                        title="Delete quote"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = '#666')}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Separate Chat Input Box (Outside the messages card at the bottom) */}
