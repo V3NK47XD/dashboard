@@ -20,7 +20,7 @@ import Timer from './pages/Timer';
 import { initNpointSync, subscribeSyncState, pullFromNpoint } from './sync/npointSync';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('todos');
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [isUnlockOpen, setIsUnlockOpen] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -59,9 +59,9 @@ export default function App() {
         .replace(/^\/dashboard\/?/i, '/')
         .replace(/^\//, '');
 
-      if (!normalizedPath || normalizedPath === 'dashboard') {
-        setCurrentPage('dashboard');
-      } else if (['todos', 'thoughts', 'settings'].includes(normalizedPath)) {
+      if (!normalizedPath || normalizedPath === 'todos') {
+        setCurrentPage('todos');
+      } else if (['dashboard', 'thoughts', 'settings', 'timer', 'ai'].includes(normalizedPath)) {
         setCurrentPage(normalizedPath);
       }
     };
@@ -74,7 +74,7 @@ export default function App() {
   const navigate = (page) => {
     setCurrentPage(page);
     const prefix = window.location.pathname.toLowerCase().startsWith('/dashboard') ? '/dashboard' : '';
-    const targetUrl = page === 'dashboard' ? `${prefix}/` : `${prefix}/${page}`;
+    const targetUrl = page === 'todos' ? `${prefix}/` : `${prefix}/${page}`;
     if (window.location.pathname !== targetUrl) {
       window.history.pushState({}, '', targetUrl);
     }
@@ -97,7 +97,7 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontWeight: 800, fontSize: '1.05rem' }}
-            onClick={() => navigate('dashboard')}
+            onClick={() => navigate('todos')}
           >
             <span style={{ color: '#facc15' }}>✦</span>
             <span>Personal OS</span>
