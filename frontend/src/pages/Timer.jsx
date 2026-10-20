@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import {
   getTimerState,
@@ -14,8 +14,10 @@ export default function Timer() {
   const [remainingMs, setRemainingMs] = useState(25 * 60 * 1000);
   const [isRunning, setIsRunning] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const [activeTotalMs, setActiveTotalMs] = useState(25 * 60 * 1000);
 
-  const totalMs = useMemo(() => durationMinutes * 60 * 1000, [durationMinutes]);
+  // In-memory active timer cache to avoid blocking localStorage calls on every tick
+  const activeTimerRef = useRef(null);
 
   // Audio completion chime via native Web Audio API
   const playChime = useCallback(() => {
@@ -56,12 +58,19 @@ export default function Timer() {
   // Sync state with cloud / local stored timer
   const syncWithStoredTimer = useCallback(() => {
     const timer = getTimerState();
+    activeTimerRef.current = timer;
+
     if (!timer) {
       if (isRunning) {
         setIsRunning(false);
       }
+      const total = durationMinutes * 60 * 1000;
+      setActiveTotalMs(total);
       return;
     }
+
+    const timerTotal = timer.totalMs || (timer.durationMinutes * 60 * 1000);
+    setActiveTotalMs(timerTotal);
 
     if (timer.durationMinutes) {
       setDurationMinutes(timer.durationMinutes);
@@ -78,6 +87,7 @@ export default function Timer() {
         setRemainingMs(0);
         setIsRunning(false);
         setIsFinished(true);
+        activeTimerRef.current = null;
         syncClearTimer(); // Null/remove when ended
       } else {
         setRemainingMs(left);
@@ -85,7 +95,7 @@ export default function Timer() {
         setIsFinished(false);
       }
     }
-  }, [isRunning]);
+  }, [durationMinutes, isRunning]);
 
   // Initial load and listen for remote changes (e.g. phone <-> laptop sync)
   useEffect(() => {
@@ -96,14 +106,12 @@ export default function Timer() {
     return () => unsub();
   }, [syncWithStoredTimer]);
 
-  // Drift-proof timer update loop: computes remaining = targetEndAt - Date.now()
+  // High-precision 50ms timer loop (smooth 20fps radial SVG animation without rAF thrashing)
   useEffect(() => {
     if (!isRunning) return;
 
-    let animId = null;
-
-    const tick = () => {
-      const timer = getTimerState();
+    const updateTimer = () => {
+      const timer = activeTimerRef.current;
       if (!timer || timer.isPaused || !timer.targetEndAt) {
         setIsRunning(false);
         return;
@@ -116,44 +124,47 @@ export default function Timer() {
         setRemainingMs(0);
         setIsRunning(false);
         setIsFinished(true);
+        activeTimerRef.current = null;
         playChime();
         syncClearTimer(); // Remove from cloud when timer ends
       } else {
         setRemainingMs(left);
-        animId = requestAnimationFrame(tick);
       }
     };
 
-    animId = requestAnimationFrame(tick);
+    updateTimer();
+    const intervalId = setInterval(updateTimer, 50);
 
-    return () => {
-      if (animId) cancelAnimationFrame(animId);
-    };
+    return () => clearInterval(intervalId);
   }, [isRunning, playChime]);
 
   // Start or resume timer
   const handleStart = () => {
     const now = Date.now();
-    const timer = getTimerState();
+    const timer = activeTimerRef.current || getTimerState();
+    const total = durationMinutes * 60 * 1000;
     let targetEndAt;
 
     if (timer && timer.isPaused && timer.pausedRemainingMs > 0) {
       targetEndAt = now + timer.pausedRemainingMs;
     } else if (isFinished || remainingMs <= 0 || !timer) {
-      targetEndAt = now + totalMs;
-      setRemainingMs(totalMs);
+      targetEndAt = now + total;
+      setRemainingMs(total);
     } else {
       targetEndAt = now + remainingMs;
     }
 
     const timerPayload = {
       durationMinutes,
+      totalMs: total,
       startedAt: timer?.startedAt || now,
       targetEndAt,
       isPaused: false,
       pausedRemainingMs: null,
     };
 
+    activeTimerRef.current = timerPayload;
+    setActiveTotalMs(total);
     setIsRunning(true);
     setIsFinished(false);
     syncSaveTimer(timerPayload);
@@ -161,7 +172,7 @@ export default function Timer() {
 
   // Pause timer
   const handlePause = () => {
-    const timer = getTimerState();
+    const timer = activeTimerRef.current || getTimerState();
     if (!timer || !timer.targetEndAt) {
       setIsRunning(false);
       return;
@@ -177,6 +188,7 @@ export default function Timer() {
       targetEndAt: null,
     };
 
+    activeTimerRef.current = timerPayload;
     setRemainingMs(left);
     setIsRunning(false);
     syncSaveTimer(timerPayload);
@@ -186,7 +198,10 @@ export default function Timer() {
   const handleReset = () => {
     setIsRunning(false);
     setIsFinished(false);
-    setRemainingMs(totalMs);
+    const total = durationMinutes * 60 * 1000;
+    activeTimerRef.current = null;
+    setActiveTotalMs(total);
+    setRemainingMs(total);
     syncClearTimer(); // Clear timer in jsonbin and local storage
   };
 
@@ -194,7 +209,9 @@ export default function Timer() {
   const handleSelectPreset = (mins) => {
     if (isRunning) return;
     setDurationMinutes(mins);
-    setRemainingMs(mins * 60 * 1000);
+    const total = mins * 60 * 1000;
+    setActiveTotalMs(total);
+    setRemainingMs(total);
     setIsFinished(false);
   };
 
@@ -203,16 +220,19 @@ export default function Timer() {
     if (isRunning) return;
     const mins = parseInt(e.target.value, 10);
     setDurationMinutes(mins);
-    setRemainingMs(mins * 60 * 1000);
+    const total = mins * 60 * 1000;
+    setActiveTotalMs(total);
+    setRemainingMs(total);
     setIsFinished(false);
   };
 
-  // Radial progress calculations
+  // Radial progress calculations with guaranteed totalMs matching
   const radius = 96;
   const stroke = 11;
   const circumference = 2 * Math.PI * radius;
-  const elapsedMs = Math.max(0, totalMs - remainingMs);
-  const progress = totalMs > 0 ? Math.min(1, Math.max(0, elapsedMs / totalMs)) : 0;
+  const currentTotalMs = activeTotalMs || (durationMinutes * 60 * 1000);
+  const elapsedMs = Math.max(0, currentTotalMs - remainingMs);
+  const progress = currentTotalMs > 0 ? Math.min(1, Math.max(0, elapsedMs / currentTotalMs)) : 0;
   const strokeDashoffset = circumference * (1 - progress);
 
   // Time format string
@@ -352,7 +372,7 @@ export default function Timer() {
               strokeLinecap="round"
               fill="none"
               style={{
-                transition: isRunning ? 'stroke-dashoffset 0.1s linear' : 'stroke-dashoffset 0.3s ease',
+                transition: isRunning ? 'stroke-dashoffset 0.05s linear' : 'stroke-dashoffset 0.3s ease',
               }}
             />
           </svg>
