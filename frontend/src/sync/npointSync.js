@@ -37,6 +37,38 @@ export const STORAGE_SAVED_PASSWORD = 'dashboard_saved_password';
 export const STORAGE_LAST_SYNC = 'dashboard_last_sync_at';
 export const SESSION_PASSWORD = 'dashboard_session_password';
 export const STORAGE_OFFLINE_QUEUE = 'dashboard_offline_queue_v2';
+export const STORAGE_TIMER_STATE = 'dashboard_timer_state_v1';
+
+export function getTimerState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_TIMER_STATE);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Error reading timer state:', e);
+  }
+  return null;
+}
+
+export function saveTimerState(timerData) {
+  if (timerData) {
+    localStorage.setItem(STORAGE_TIMER_STATE, JSON.stringify(timerData));
+  } else {
+    localStorage.removeItem(STORAGE_TIMER_STATE);
+  }
+  notifyDataChanged();
+}
+
+export async function syncSaveTimer(timerData) {
+  saveTimerState(timerData);
+  enqueueOfflineMutation({ type: 'timer_update', timerData });
+  scheduleDebouncedDrain(2000);
+}
+
+export async function syncClearTimer() {
+  saveTimerState(null);
+  enqueueOfflineMutation({ type: 'timer_clear' });
+  scheduleDebouncedDrain(2000);
+}
 
 export function getOfflineQueue() {
   try {
@@ -197,6 +229,7 @@ export function createDefaultDocument() {
     thresholds,
     tasks: {},
     thoughts: {},
+    timer: null,
   };
 }
 
@@ -248,6 +281,7 @@ async function fetchRemoteDoc(url) {
   if (!doc.thresholds) doc.thresholds = {};
   if (!doc.tasks) doc.tasks = {};
   if (!doc.thoughts) doc.thoughts = {};
+  if (doc.timer === undefined) doc.timer = null;
   return doc;
 }
 /**
@@ -334,6 +368,10 @@ async function overwriteDeviceFromDoc(doc, password) {
     if (decryptedTasks.length > 0) await db.todos.bulkPut(decryptedTasks);
     if (decryptedThoughts.length > 0) await db.thoughts.bulkPut(decryptedThoughts);
   });
+  // 4. Timer state from cloud
+  if (doc.timer !== undefined) {
+    saveTimerState(doc.timer);
+  }
 
   notifyDataChanged();
 }
@@ -558,6 +596,10 @@ export async function drainOfflineQueue() {
           }
         } else if (m.type === 'threshold_update') {
           currentThresholds[m.catId] = Number(m.newThresh);
+        } else if (m.type === 'timer_update') {
+          doc.timer = m.timerData;
+        } else if (m.type === 'timer_clear') {
+          doc.timer = null;
         }
       }
 
