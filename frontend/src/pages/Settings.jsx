@@ -13,6 +13,7 @@ import {
   exportPlainJsonBackup,
   importPlainJsonBackup,
   createNpointBin,
+  subscribeDataChanges,
 } from '../sync/npointSync';
 
 export default function Settings() {
@@ -60,6 +61,10 @@ export default function Settings() {
 
   useEffect(() => {
     loadSettings();
+    const unsub = subscribeDataChanges(() => {
+      loadSettings();
+    });
+    return () => unsub();
   }, []);
 
   const handleSaveUrl = async (e) => {

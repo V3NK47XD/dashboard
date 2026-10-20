@@ -17,7 +17,7 @@ import Thoughts from './pages/Thoughts';
 import AI from './pages/AI';
 import Settings from './pages/Settings';
 import Timer from './pages/Timer';
-import { initNpointSync, subscribeSyncState, pullFromNpoint } from './sync/npointSync';
+import { initNpointSync, subscribeSyncState, pullFromNpoint, notifyDataChanged } from './sync/npointSync';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('todos');
@@ -173,7 +173,8 @@ export default function App() {
           onClick={async () => {
             setIsPolling(true);
             try {
-              await pullFromNpoint(false);
+              await pullFromNpoint(false, true);
+              notifyDataChanged();
             } finally {
               setTimeout(() => setIsPolling(false), 600);
             }

@@ -730,19 +730,21 @@ export function triggerDebouncedSync(delayMs = 2000) {
 /**
  * PULL ONLY from npoint.io (Read-only, updates local device if remote changed)
  */
-export async function pullFromNpoint(silent = false) {
+export async function pullFromNpoint(silent = false, force = false) {
   const url = getNpointUrl();
   if (!url) {
     setSyncState('needs_setup');
+    notifyDataChanged();
     return { success: false, reason: 'NEEDS_SETUP' };
   }
 
   if (!navigator.onLine) {
     setSyncState('offline');
+    notifyDataChanged();
     return { success: false, reason: 'OFFLINE' };
   }
 
-  if (isSyncInProgress) return { success: false, reason: 'BUSY' };
+  if (isSyncInProgress && !force) return { success: false, reason: 'BUSY' };
 
   const offlineQueue = getOfflineQueue();
   if (offlineQueue.length > 0) {
@@ -755,13 +757,15 @@ export async function pullFromNpoint(silent = false) {
     const doc = await fetchRemoteDoc(url);
     const password = getCachedPassword();
 
-    // Check if remote doc changed
+    // Check if remote doc changed or force reload
     const docHash = doc.updated_at || JSON.stringify(doc);
-    if (docHash !== lastRemoteDocHash) {
+    if (force || docHash !== lastRemoteDocHash) {
       lastRemoteDocHash = docHash;
       await overwriteDeviceFromDoc(doc, password);
       lastSyncTimestamp = doc.updated_at || new Date().toISOString();
       localStorage.setItem(STORAGE_LAST_SYNC, lastSyncTimestamp);
+    } else {
+      notifyDataChanged();
     }
 
     setSyncState('synced');
@@ -782,7 +786,11 @@ export async function pullFromNpoint(silent = false) {
  * Manual Sync button handler
  */
 export async function syncWithNpoint() {
-  return await drainOfflineQueue();
+  const q = getOfflineQueue();
+  if (q.length > 0) {
+    return await drainOfflineQueue();
+  }
+  return await pullFromNpoint(false, true);
 }
 
 /**
